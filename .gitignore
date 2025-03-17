@@ -1,0 +1,6 @@
+/target
+.replit
+*.lock
+generated-icon.png
+*sample.json
+*cache*

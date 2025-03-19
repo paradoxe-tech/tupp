@@ -13,3 +13,4 @@ clap = { version = "4.0", features = ["derive"] }
 num = "0.4"
 dialoguer = "0.10"
 uuid = { version = "1", features = ["v4", "serde"] }
+dirs = "5.0"

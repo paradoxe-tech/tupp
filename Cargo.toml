@@ -1,5 +1,5 @@
 [package]
-name = "tup"
+name = "tupp"
 version = "0.0.1"
 authors = ["paradoxe.tech","floriandrd"]
 edition = "2021"

@@ -27,12 +27,14 @@ impl Contact {
         let last_name = self.identity.last_name.unwrap_string();
         let post_nominal = self.identity.post_nominal.unwrap_string();
 
-        return pattern
-            .replace("TITLE", &title)
-            .replace("FIRST", &first_name)
-            .replace("MIDDLE", &middle_name)
-            .replace("LAST", &last_name)
-            .replace("POST", &post_nominal);
+        return crate::sanitize::trim_extra_spaces(
+            &pattern
+                .replace("TITLE", &title)
+                .replace("FIRST", &first_name)
+                .replace("MIDDLE", &middle_name)
+                .replace("LAST", &last_name)
+                .replace("POST", &post_nominal)
+        );
     }
 
     // pub fn add_to_group(&self, group: Group) -> Result<String,String> {

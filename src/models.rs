@@ -5,6 +5,16 @@ use std::fmt;
 /* BASIC STRUCTURES */
 
 #[derive(Deserialize, Serialize, Debug)]
+pub enum Gender {
+    #[serde(rename = "male")]
+    Male,
+    #[serde(rename = "female")]
+    Female,
+    #[serde(rename = "non-binary")]
+    NonBinary,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Company {
     pub name: Option<String>,
     pub position: Option<String>,
@@ -158,6 +168,15 @@ pub struct Identity {
     pub middle_name: Option<String>,
     pub first_name: Option<String>,
     pub post_nominal: Option<String>,
+    pub gender: Option<Gender>,
     pub birth_date: Option<Date>,
     pub birth_location: Option<Address>,
+    #[serde(default = "default_is_alive")]
+    pub is_alive: bool,
+    pub death_date: Option<Date>,
+    pub death_location: Option<Address>,
+}
+
+fn default_is_alive() -> bool {
+    true
 }

@@ -97,6 +97,10 @@ enum AddType {
     Social,
     /// Add birth information.
     Birth,
+    /// Add death information.
+    Death,
+    /// Add gender information.
+    Gender,
     /// Add an email address.
     Email,
     /// Add a phone number.
@@ -278,6 +282,8 @@ fn main() -> io::Result<()> {
                     match add_type {
                         AddType::Social => contact.add_social_interactive(),
                         AddType::Birth => contact.add_birth_interactive(),
+                        AddType::Death => contact.add_death_interactive(),
+                        AddType::Gender => contact.add_gender_interactive(),
                         AddType::Email => contact.add_email_interactive(),
                         AddType::Phone => contact.add_phone_interactive(),
                         AddType::Link { .. } => unreachable!(), // Already handled above

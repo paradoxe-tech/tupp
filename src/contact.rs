@@ -1,7 +1,7 @@
 use serde::{ Deserialize, Serialize };
 use std::fmt;
 use std::collections::HashSet;
-use dialoguer::{Input, Confirm};
+use dialoguer::{Input, Confirm, Select};
 use uuid::Uuid;
 
 use crate::unwrap::UnwrapString;
@@ -58,6 +58,22 @@ impl Contact {
     }
 
     pub fn new_from_input() -> Self {
+
+        let gender: Gender = {
+            let selection = Select::new()
+                .with_prompt("Select gender")
+                .items(&["Male", "Female", "Non-binary"])
+                .default(0)
+                .interact()
+                .unwrap();
+            
+            match selection {
+                0 => Gender::Male,
+                1 => Gender::Female,
+                2 => Gender::NonBinary,
+                _ => Gender::Male, // Default fallback
+            }
+        };
 
         let title: Option<String> = if Confirm::new()
             .with_prompt("Do you want to enter a title?")
@@ -129,8 +145,12 @@ impl Contact {
                 middle_name,
                 last_name: Some(last_name),
                 post_nominal,
+                gender: Some(gender),
                 birth_date: None,
                 birth_location: None,
+                is_alive: true,
+                death_date: None,
+                death_location: None,
             },
             email,
             phone,
@@ -147,6 +167,14 @@ impl Contact {
 
     pub fn add_birth_interactive(&mut self) {
         interactions::add_birth_to_contact(self);
+    }
+
+    pub fn add_death_interactive(&mut self) {
+        interactions::add_death_to_contact(self);
+    }
+
+    pub fn add_gender_interactive(&mut self) {
+        interactions::add_gender_to_contact(self);
     }
 
     pub fn add_email_interactive(&mut self) {
@@ -252,6 +280,25 @@ impl fmt::Display for Contact {
             self.identity.first_name.unwrap_string(),
             self.identity.last_name.unwrap_string()
         )?;
+
+        if let Some(gender) = &self.identity.gender {
+            writeln!(
+                f,
+                "\tGender: {}",
+                match gender {
+                    crate::models::Gender::Male => "Male",
+                    crate::models::Gender::Female => "Female",
+                    crate::models::Gender::NonBinary => "Non-binary",
+                }
+            )?;
+        }
+
+        writeln!(
+            f,
+            "\tAlive: {}",
+            if self.identity.is_alive { "Yes" } else { "No" }
+        )?;
+
         if let Some(date) = &self.identity.birth_date {
             writeln!(
                 f,
@@ -266,6 +313,24 @@ impl fmt::Display for Contact {
                 "\tBirth Location: {}",
                 birth_location
             )?;
+        }
+
+        if !self.identity.is_alive {
+            if let Some(death_date) = &self.identity.death_date {
+                writeln!(
+                    f,
+                    "\tDeath Date: {}",
+                    death_date
+                )?;
+            }
+
+            if let Some(death_location) = &self.identity.death_location {
+                writeln!(
+                    f,
+                    "\tDeath Location: {}",
+                    death_location
+                )?;
+            }
         }
 
         if let Some(address) = &self.address {

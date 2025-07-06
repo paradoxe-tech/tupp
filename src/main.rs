@@ -4,6 +4,8 @@ mod contact;
 mod group;
 mod storage;
 mod sanitize;
+mod interactions;
+mod family;
 
 use crate::storage::*;
 use clap::{Parser, Subcommand};
@@ -34,8 +36,8 @@ enum Commands {
         show_ids: bool,
     },
 
-    /// Add a new contact.
-    Add,
+    /// Register a new contact.
+    New,
 
     /// Delete a contact by its ID.
     Del {
@@ -64,6 +66,48 @@ enum Commands {
         id: String,
     },
 
+    /// Find a contact then show detailed information for it.
+    Display {
+        /// The text to search for in contact details.
+        text: String,
+    },
+
+    /// Add information to an existing contact.
+    Add {
+        /// The ID of the contact to modify.
+        id: String,
+        /// The type of information to add.
+        #[clap(subcommand)]
+        add_type: AddType,
+    },
+
+    /// Generate a family tree for a contact.
+    Family {
+        /// The ID of the contact to generate family tree for.
+        id: String,
+        /// Show detailed generational view instead of tree view.
+        #[clap(short, long)]
+        detailed: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum AddType {
+    /// Add a social media account.
+    Social,
+    /// Add birth information.
+    Birth,
+    /// Add an email address.
+    Email,
+    /// Add a phone number.
+    Phone,
+    /// Link to another contact.
+    Link {
+        /// The ID of the contact to link to.
+        other_id: String,
+        /// The type of relationship.
+        relation_type: String,
+    },
 }
 
 fn find_best_match<'a>(contacts: &'a [Contact], text: &str) -> Option<&'a Contact> {
@@ -111,7 +155,7 @@ fn main() -> io::Result<()> {
                 }
             }
         },
-        Commands::Add => {
+        Commands::New => {
             let new_contact = Contact::new_from_input();
             contacts.push(new_contact);
 
@@ -160,6 +204,109 @@ fn main() -> io::Result<()> {
             } else {
                 println!("No contact found with ID: {}", id);
             }
+        },
+        Commands::Display { text } => {
+            if let Some(contact) = find_best_match(&contacts, &text) {
+                println!("{contact}");
+            } else {
+                println!("No contact found matching '{text}'.");
+            }
+        },
+        Commands::Add { id, add_type } => {
+            let id_uuid = match Uuid::parse_str(&id) {
+                Ok(parsed_id) => parsed_id,
+                Err(_) => {
+                    println!("Invalid ID format. Please provide a valid UUID.");
+                    return Ok(());
+                }
+            };
+
+            // Handle link case separately to avoid borrowing issues
+            if let AddType::Link { other_id, relation_type } = &add_type {
+                let other_uuid = match Uuid::parse_str(other_id) {
+                    Ok(parsed_id) => parsed_id,
+                    Err(_) => {
+                        println!("Invalid other ID format. Please provide a valid UUID.");
+                        return Ok(());
+                    }
+                };
+                
+                // Check if both contacts exist
+                let contact_exists = contacts.iter().any(|c| c.identifier == id_uuid);
+                let other_exists = contacts.iter().any(|c| c.identifier == other_uuid);
+                
+                if !contact_exists {
+                    println!("No contact found with ID: {}", id);
+                    return Ok(());
+                }
+                
+                if !other_exists {
+                    println!("No contact found with ID: {}", other_id);
+                    return Ok(());
+                }
+                
+                // Find both contacts and create bidirectional link
+                let mut contact_a_index = None;
+                let mut contact_b_index = None;
+                
+                for (index, contact) in contacts.iter().enumerate() {
+                    if contact.identifier == id_uuid {
+                        contact_a_index = Some(index);
+                    }
+                    if contact.identifier == other_uuid {
+                        contact_b_index = Some(index);
+                    }
+                }
+                
+                if let (Some(a_idx), Some(b_idx)) = (contact_a_index, contact_b_index) {
+                    let (contact_a, contact_b) = if a_idx < b_idx {
+                        let (left, right) = contacts.split_at_mut(b_idx);
+                        (&mut left[a_idx], &mut right[0])
+                    } else {
+                        let (left, right) = contacts.split_at_mut(a_idx);
+                        (&mut right[0], &mut left[b_idx])
+                    };
+                    
+                    if let Err(error) = Contact::create_bidirectional_link(contact_a, contact_b, relation_type.clone()) {
+                        println!("{}", error);
+                        return Ok(());
+                    }
+                }
+            } else {
+                // Handle other add types
+                if let Some(contact) = contacts.iter_mut().find(|c| c.identifier == id_uuid) {
+                    match add_type {
+                        AddType::Social => contact.add_social_interactive(),
+                        AddType::Birth => contact.add_birth_interactive(),
+                        AddType::Email => contact.add_email_interactive(),
+                        AddType::Phone => contact.add_phone_interactive(),
+                        AddType::Link { .. } => unreachable!(), // Already handled above
+                    }
+                } else {
+                    println!("No contact found with ID: {}", id);
+                    return Ok(());
+                }
+            }
+            
+            save_contacts(&contacts_file, &contacts)?;
+            println!("Information added successfully!");
+        },
+        Commands::Family { id, detailed } => {
+            let id_uuid = match Uuid::parse_str(&id) {
+                Ok(parsed_id) => parsed_id,
+                Err(_) => {
+                    println!("Invalid ID format. Please provide a valid UUID.");
+                    return Ok(());
+                }
+            };
+
+            if !contacts.iter().any(|c| c.identifier == id_uuid) {
+                println!("No contact found with ID: {}", id);
+                return Ok(());
+            }
+
+            let tree = family::generate_family_tree(&contacts, id_uuid);
+            println!("{}", tree);
         },
     }
 

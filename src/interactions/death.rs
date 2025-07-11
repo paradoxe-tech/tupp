@@ -1,31 +1,4 @@
-use dialoguer::{Input, Confirm};
-use crate::models::{Date, Address};
-
-pub fn create_death_date_interactive() -> Date {
-    let year: i32 = Input::new()
-        .with_prompt("Death Year")
-        .interact_text()
-        .unwrap();
-
-    let month: u8 = Input::new()
-        .with_prompt("Death Month (1-12)")
-        .interact_text()
-        .unwrap();
-
-    let day: u8 = Input::new()
-        .with_prompt("Death Day (1-31)")
-        .interact_text()
-        .unwrap();
-
-    Date {
-        year: Some(year),
-        month: Some(month),
-        day: Some(day),
-        hour: None,
-        minute: None,
-        second: None,
-    }
-}
+use dialoguer::Confirm;
 
 pub fn add_death_to_contact(contact: &mut crate::contact::Contact) {
     // Mark as deceased
@@ -37,7 +10,7 @@ pub fn add_death_to_contact(contact: &mut crate::contact::Contact) {
         .interact()
         .unwrap()
     {
-        contact.identity.death_date = Some(create_death_date_interactive());
+        contact.identity.death_date = Some(crate::interactions::date::create_date_interactive());
     }
 
     if Confirm::new()

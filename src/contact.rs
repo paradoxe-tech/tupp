@@ -37,6 +37,7 @@ pub enum Relation {
     Colleague,
     Partner,
     Spouse,
+    Ex
 }
 
 impl Contact {
@@ -253,6 +254,7 @@ impl Contact {
             "colleague" => Some(Relation::Colleague),
             "partner" => Some(Relation::Partner),
             "spouse" => Some(Relation::Spouse),
+            "ex" => Some(Relation::Ex),
             _ => None,
         }
     }
@@ -267,6 +269,7 @@ impl Contact {
             Relation::Colleague => Relation::Colleague,
             Relation::Partner => Relation::Partner,
             Relation::Spouse => Relation::Spouse,
+            Relation::Ex => Relation::Ex,
         }
     }
 
@@ -400,6 +403,7 @@ impl fmt::Display for Relation {
             Relation::Colleague => write!(f, "Colleague"),
             Relation::Partner => write!(f, "Partner"),
             Relation::Spouse => write!(f, "Spouse"),
+            Relation::Ex => write!(f, "Ex-partner"),
         }
     }
 }

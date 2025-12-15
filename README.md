@@ -1,47 +1,35 @@
-
 ## Installation
 
-### Prerequisites
+### Quick install using `tuppdate`
 
-You need to have Rust installed on your system. If you don't have Rust installed:
+To easily manage updates for the tupp binary, we provide a self-contained script called tuppdate. It downloads the specific release for your system and installs it in your local directory (`$HOME/.local/bin`). For example, you can run `tuppdate 1.1.0`.
 
-**Linux/macOS:**
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env
+curl -sL https://gist.github.com/paradoxe-tech/369ff4ca0acdff4b2b4424a69ca52bc9/raw/tuppdate.sh -o tuppdate.sh
+chmod +x tuppdate.sh
+mkdir -p "$HOME/.local/bin"
+mv ./tuppdate.sh "$HOME/.local/bin/tuppdate"
+```
+```bash
+tuppdate 1.1.0
 ```
 
-**Windows:**
-Download and run the installer from [rustup.rs](https://rustup.rs/)
+### Compile it yourself
 
-### Installing Tupp
+You must have Rust and Cargo installed on your system. 
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/paradoxe-tech/tupp.git
-   cd tupp
-   ```
+```bash
+git clone https://github.com/paradoxe-tech/tupp.git
+cd tupp
+cargo build --release
+cargo install --path
+```
 
-2. **Build and install:**
-   ```bash
-   cargo build --release
-   ```
+## Usage
 
-3. **Run the application:**
-
-   ```bash
-   cargo install --path .
-   tupp --help
-   ```
-
-## Features
-
-- **Contact Management**: Create, update, and manage contacts
-- **Gender Support**: Mandatory gender selection (Male, Female, Non-binary)
-- **Birth/Death Information**: Track birth dates, locations, and death information
-- **Relationships**: Link contacts with family and professional relationships
-- **Search**: Find contacts by name or other details
-- **Export**: Export contact data to JSON
+```bash
+tupp --help
+```
 
 ## Data Storage
 

@@ -1,41 +1,30 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Tupp Contact (v1.0.0)",
-  "description": "JSON schema for a contact file used by the tupp application (version 1.0.0 - original)",
-  "type": "object",
-  "required": ["identifier", "identity"],
-  "properties": {
-    "identifier": {
-      "type": "string",
-      "format": "uuid",
-      "description": "UUID identifier for the contact"
-    },
-    "identity": { "$ref": "#/definitions/Identity" },
-    "address": { "$ref": "#/definitions/Address" },
-    "emails": {
-      "type": "array",
-      "items": { "$ref": "#/definitions/Email" }
-    },
-    "phones": {
-      "type": "array",
-      "items": { "$ref": "#/definitions/PhoneNumber" }
-    },
-    "socials": {
-      "type": "array",
-      "items": { "$ref": "#/definitions/Social" }
-    },
-    "groups": {
-      "type": "array",
-      "items": { "$ref": "#/definitions/Group" },
-      "description": "Group hierarchy; each group has a name and optional child groups"
-    },
-    "links": {
-      "type": "array",
-      "items": { "$ref": "#/definitions/Link" }
-    }
-  },
+  "title": "Tupp Contacts (v1.0.0)",
+  "description": "JSON schema for a list of contacts used by the tupp application (version 1.0.0 - original)",
+  "type": "array",
+  "items": { "$ref": "#/definitions/Contact" },
 
   "definitions": {
+    "Contact": {
+      "type": "object",
+      "required": ["identifier", "identity"],
+      "properties": {
+        "identifier": {
+          "type": "string",
+          "format": "uuid",
+          "description": "UUID identifier for the contact"
+        },
+        "identity": { "$ref": "#/definitions/Identity" },
+        "address": { "$ref": "#/definitions/Address" },
+        "emails": { "type": "array", "items": { "$ref": "#/definitions/Email" } },
+        "phones": { "type": "array", "items": { "$ref": "#/definitions/PhoneNumber" } },
+        "socials": { "type": "array", "items": { "$ref": "#/definitions/Social" } },
+        "groups": { "type": "array", "items": { "$ref": "#/definitions/Group" } },
+        "links": { "type": "array", "items": { "$ref": "#/definitions/Link" } }
+      },
+      "additionalProperties": false
+    },
     "Identity": {
       "type": "object",
       "properties": {

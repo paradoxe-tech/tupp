@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tupp Contact (v1.0.0)",
+  "description": "JSON schema for a contact file used by the tupp application (version 1.0.0 - original)",
+  "type": "object",
+  "required": ["identifier", "identity"],
+  "properties": {
+    "identifier": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID identifier for the contact"
+    },
+    "identity": { "$ref": "#/definitions/Identity" },
+    "address": { "$ref": "#/definitions/Address" },
+    "emails": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Email" }
+    },
+    "phones": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/PhoneNumber" }
+    },
+    "socials": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Social" }
+    },
+    "groups": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Group" },
+      "description": "Group hierarchy; each group has a name and optional child groups"
+    },
+    "links": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Link" }
+    }
+  },
+
+  "definitions": {
+    "Identity": {
+      "type": "object",
+      "properties": {
+        "title": { "type": ["string", "null"] },
+        "first_name": { "type": ["string", "null"] },
+        "middle_name": { "type": ["string", "null"] },
+        "last_name": { "type": ["string", "null"] },
+        "post_nominal": { "type": ["string", "null"] },
+        "gender": { "type": ["string", "null"], "enum": ["male","female","non-binary"] },
+        "birth_date": { "$ref": "#/definitions/Date" },
+        "birth_location": { "$ref": "#/definitions/Address" },
+        "is_alive": { "type": "boolean", "default": true },
+        "death_date": { "$ref": "#/definitions/Date" },
+        "death_location": { "$ref": "#/definitions/Address" }
+      },
+      "additionalProperties": false
+    },
+
+    "Date": {
+      "type": "object",
+      "properties": {
+        "year": { "type": ["integer", "null"] },
+        "month": { "type": ["integer", "null"], "minimum": 1, "maximum": 12 },
+        "day": { "type": ["integer", "null"], "minimum": 1, "maximum": 31 },
+        "hour": { "type": ["integer", "null"], "minimum": 0, "maximum": 23 },
+        "minute": { "type": ["integer", "null"], "minimum": 0, "maximum": 59 },
+        "second": { "type": ["integer", "null"], "minimum": 0, "maximum": 59 }
+      },
+      "additionalProperties": false
+    },
+
+    "Address": {
+      "type": "object",
+      "properties": {
+        "label": { "type": ["string", "null"] },
+        "country": { "type": ["string", "null"] },
+        "region": { "type": ["string", "null"] },
+        "city": { "type": ["string", "null"] },
+        "post_code": { "type": ["string", "null"] },
+        "street": { "type": ["string", "null"] },
+        "number": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+
+    "Email": {
+      "type": "object",
+      "properties": {
+        "label": { "type": ["string", "null"] },
+        "address": { "type": ["string", "null"], "format": "email" }
+      },
+      "additionalProperties": false
+    },
+
+    "PhoneNumber": {
+      "type": "object",
+      "properties": {
+        "label": { "type": ["string", "null"] },
+        "country_code": { "type": "integer" },
+        "number": { "type": "integer" }
+      },
+      "required": ["country_code", "number"],
+      "additionalProperties": false
+    },
+
+    "Social": {
+      "type": "object",
+      "properties": {
+        "network": { "type": "string" },
+        "username": { "type": ["string", "null"] }
+      },
+      "required": ["network"],
+      "additionalProperties": false
+    },
+
+    "Link": {
+      "type": "object",
+      "properties": {
+        "target": { "type": "string", "format": "uuid" },
+        "relation": { "type": "string", "enum": ["Friend","Child","Parent","Boss","Employee","Colleague","Partner","Spouse","Ex"] }
+      },
+      "required": ["target","relation"],
+      "additionalProperties": false
+    },
+
+    "Group": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "childs": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Group" }
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  },
+
+  "additionalProperties": false
+}

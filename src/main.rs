@@ -5,7 +5,6 @@ mod group;
 mod storage;
 mod sanitize;
 mod interactions;
-mod family;
 
 use crate::storage::*;
 use clap::{Parser, Subcommand};
@@ -79,15 +78,6 @@ enum Commands {
         /// The type of information to add.
         #[clap(subcommand)]
         add_type: AddType,
-    },
-
-    /// Generate a family tree for a contact.
-    Family {
-        /// The ID of the contact to generate family tree for.
-        id: String,
-        /// Show detailed generational view instead of tree view.
-        #[clap(short, long)]
-        detailed: bool,
     },
 }
 
@@ -297,23 +287,7 @@ fn main() -> io::Result<()> {
             save_contacts(&contacts_file, &contacts)?;
             println!("Information added successfully!");
         },
-        Commands::Family { id, detailed } => {
-            let id_uuid = match Uuid::parse_str(&id) {
-                Ok(parsed_id) => parsed_id,
-                Err(_) => {
-                    println!("Invalid ID format. Please provide a valid UUID.");
-                    return Ok(());
-                }
-            };
-
-            if !contacts.iter().any(|c| c.identifier == id_uuid) {
-                println!("No contact found with ID: {}", id);
-                return Ok(());
-            }
-
-            let tree = family::generate_family_tree(&contacts, id_uuid);
-            println!("{}", tree);
-        },
+        
     }
 
     Ok(())

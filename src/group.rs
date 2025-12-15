@@ -5,7 +5,7 @@ use std::collections::HashSet;
 #[derive(Deserialize, Serialize, Debug, Eq, PartialEq)]
 pub struct Group {
     name: String,
-    childs: HashSet<Group>
+    subgroups: HashSet<Group>
 }
 
 impl Hash for Group {
@@ -16,7 +16,7 @@ impl Hash for Group {
 
 impl Group {
     // pub fn add_subgroup(&mut self, child: Group) -> Result<String, String> {
-    //     if self.childs.insert(child) {
+    //     if self.subgroups.insert(child) {
     //          return Ok(format!(
     //              "Group {} is now subgroup of {}",
     //              child.name,
@@ -32,7 +32,7 @@ impl Group {
     // }
 
     pub fn remove_subgroup(&mut self, child: Group) -> Result<String, String> {
-        if self.childs.remove(&child) {
+        if self.subgroups.remove(&child) {
              return Ok(format!(
                  "Group {} is no longer subgroup of {}",
                  child.name,

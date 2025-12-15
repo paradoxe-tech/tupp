@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Tupp Contacts (v1.0.0)",
-  "description": "JSON schema for a list of contacts used by the tupp application (version 1.0.0 - original)",
+  "title": "Tupp Contacts (v1.1.0)",
+  "description": "JSON schema for a list of contacts used by the tupp application",
   "type": "array",
   "items": { "$ref": "#/definitions/Contact" },
 
@@ -33,9 +33,12 @@
         "middle_name": { "type": ["string", "null"] },
         "last_name": { "type": ["string", "null"] },
         "post_nominal": { "type": ["string", "null"] },
-        "gender": { "type": ["string", "null"], "enum": ["male","female","non-binary"] },
+        "gender": { "type": ["string", "null"], "enum": ["male","female","non-binary", "Male", "Female", "Non-binary"] },
         "birth_date": { "$ref": "#/definitions/Date" },
         "birth_location": { "$ref": "#/definitions/Address" },
+        "birth_first_name": { "type": ["string", "null"] },
+        "birth_middle_name": { "type": ["string", "null"] },
+        "birth_last_name": { "type": ["string", "null"] },
         "is_alive": { "type": "boolean", "default": true },
         "death_date": { "$ref": "#/definitions/Date" },
         "death_location": { "$ref": "#/definitions/Address" }
@@ -114,7 +117,7 @@
       "type": "object",
       "properties": {
         "name": { "type": "string" },
-        "childs": {
+        "subgroups": {
           "type": "array",
           "items": { "$ref": "#/definitions/Group" }
         }

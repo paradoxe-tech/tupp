@@ -171,6 +171,9 @@ pub struct Identity {
     pub gender: Option<Gender>,
     pub birth_date: Option<Date>,
     pub birth_location: Option<Address>,
+    pub birth_first_name: Option<String>,
+    pub birth_middle_name: Option<String>,
+    pub birth_last_name: Option<String>,
     #[serde(default = "default_is_alive")]
     pub is_alive: bool,
     pub death_date: Option<Date>,

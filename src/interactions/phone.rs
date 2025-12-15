@@ -38,9 +38,9 @@ pub fn create_phone_interactive() -> PhoneNumber {
 pub fn add_phone_to_contact(contact: &mut crate::contact::Contact) {
     let new_phone = create_phone_interactive();
 
-    if let Some(ref mut phone_vec) = contact.phone {
+    if let Some(ref mut phone_vec) = contact.phones {
         phone_vec.push(new_phone);
     } else {
-        contact.phone = Some(vec![new_phone]);
+        contact.phones = Some(vec![new_phone]);
     }
 }

@@ -21,9 +21,9 @@ pub fn create_social_interactive() -> Social {
 pub fn add_social_to_contact(contact: &mut crate::contact::Contact) {
     let new_social = create_social_interactive();
 
-    if let Some(ref mut social_vec) = contact.social {
+    if let Some(ref mut social_vec) = contact.socials {
         social_vec.push(new_social);
     } else {
-        contact.social = Some(vec![new_social]);
+        contact.socials = Some(vec![new_social]);
     }
 }

@@ -14,9 +14,9 @@ pub struct Contact {
     pub identifier: Uuid,
     pub identity: Identity,
     pub address: Option<Address>,
-    pub email: Option<Vec<Email>>,
-    pub phone: Option<Vec<PhoneNumber>>,
-    pub social: Option<Vec<Social>>,
+    pub emails: Option<Vec<Email>>,
+    pub phones: Option<Vec<PhoneNumber>>,
+    pub socials: Option<Vec<Social>>,
     pub groups: Option<HashSet<Group>>,
     pub links: Option<Vec<Link>>,
 }
@@ -117,21 +117,21 @@ impl Contact {
                 )
             } else { None };
 
-        let email: Option<Vec<Email>> = if Confirm::new()
+        let emails: Option<Vec<Email>> = if Confirm::new()
             .with_prompt("Do you want to enter an email?")
             .default(false)
             .interact().unwrap() {
                 Some(vec![interactions::create_email_interactive()])
             } else { None };
 
-        let phone: Option<Vec<PhoneNumber>> = if Confirm::new()
+        let phones: Option<Vec<PhoneNumber>> = if Confirm::new()
             .with_prompt("Do you want to enter a phone number?")
             .default(true)
             .interact().unwrap() {
                 Some(vec![interactions::create_phone_interactive()])
             } else { None };
 
-        let social: Option<Vec<Social>> = if Confirm::new()
+        let socials: Option<Vec<Social>> = if Confirm::new()
             .with_prompt("Do you want to enter social media information?")
             .default(false)
             .interact().unwrap() {
@@ -142,21 +142,24 @@ impl Contact {
             identifier: Uuid::new_v4(),
             identity: Identity {
                 title,
-                first_name: Some(first_name),
-                middle_name,
-                last_name: Some(last_name),
+                first_name: Some(first_name.clone()),
+                middle_name: middle_name.clone(),
+                last_name: Some(last_name.clone()),
                 post_nominal,
                 gender: Some(gender),
                 birth_date: None,
                 birth_location: None,
+                birth_first_name: Some(first_name),
+                birth_middle_name: middle_name,
+                birth_last_name: Some(last_name),
                 is_alive: true,
                 death_date: None,
                 death_location: None,
             },
-            email,
-            phone,
+            emails,
+            phones,
             address: None,
-            social,
+            socials,
             groups: None,
             links: None,
         }
@@ -318,6 +321,30 @@ impl fmt::Display for Contact {
             )?;
         }
 
+        if let Some(bfn) = &self.identity.birth_first_name {
+            writeln!(
+                f,
+                "\tBirth First Name: {}",
+                bfn
+            )?;
+        }
+
+        if let Some(bmn) = &self.identity.birth_middle_name {
+            writeln!(
+                f,
+                "\tBirth Middle Name: {}",
+                bmn
+            )?;
+        }
+
+        if let Some(bln) = &self.identity.birth_last_name {
+            writeln!(
+                f,
+                "\tBirth Last Name: {}",
+                bln
+            )?;
+        }
+
         if !self.identity.is_alive {
             if let Some(death_date) = &self.identity.death_date {
                 writeln!(
@@ -344,7 +371,7 @@ impl fmt::Display for Contact {
             )?;
         }
 
-        if let Some(emails) = &self.email {
+        if let Some(emails) = &self.emails {
             writeln!(f, "\tEmails:")?;
             for email in emails {
                 writeln!(
@@ -355,7 +382,7 @@ impl fmt::Display for Contact {
             }
         }
 
-        if let Some(phones) = &self.phone {
+        if let Some(phones) = &self.phones {
             writeln!(f, "\tPhone Numbers:")?;
             for phone in phones {
                 writeln!(
@@ -366,7 +393,7 @@ impl fmt::Display for Contact {
             }
         }
 
-        if let Some(socials) = &self.social {
+        if let Some(socials) = &self.socials {
             writeln!(f, "\tSocial Networks:")?;
             for social in socials {
                 writeln!(

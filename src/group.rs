@@ -25,10 +25,15 @@ impl Group {
         }
     }
 
-    pub fn display_recursive(&self, indent: usize) {
-        println!("{}{}: {}", "  ".repeat(indent), self.name, self.identifier);
+    pub fn display_recursive(&self, indent: usize, show_ids: bool) {
+        if show_ids {
+            println!("{}\t{}{}", self.identifier, "  ".repeat(indent), self.name);
+        } else {
+            println!("{}{}", "  ".repeat(indent), self.name);
+        }
+
         for subgroup in &self.subgroups {
-            subgroup.display_recursive(indent + 1);
+            subgroup.display_recursive(indent + 1, show_ids);
         }
     }
 
@@ -51,6 +56,43 @@ impl Group {
                 return true;
             }
             if Self::find_parent_and_add_recursive(&mut group.subgroups, parent_id, new_group.clone()) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn find_group_by_id_recursive<'a>(groups: &'a [Group], id: &Uuid) -> Option<&'a Group> {
+        for group in groups {
+            if &group.identifier == id {
+                return Some(group);
+            }
+            if let Some(found) = Self::find_group_by_id_recursive(&group.subgroups, id) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    pub fn find_group_by_name_recursive<'a>(groups: &'a [Group], text: &str) -> Vec<&'a Group> {
+        let mut results = Vec::new();
+        for group in groups {
+            if group.name.to_lowercase().contains(&text.to_lowercase()) {
+                results.push(group);
+            }
+            results.extend(Self::find_group_by_name_recursive(&group.subgroups, text));
+        }
+        results
+    }
+
+    pub fn delete_group_recursive(groups: &mut Vec<Group>, id: &Uuid) -> bool {
+        let initial_len = groups.len();
+        groups.retain(|g| &g.identifier != id);
+        if groups.len() < initial_len {
+            return true;
+        }
+        for group in groups {
+            if Self::delete_group_recursive(&mut group.subgroups, id) {
                 return true;
             }
         }

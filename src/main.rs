@@ -24,6 +24,30 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Manage contacts.
+    Contact {
+        #[clap(subcommand)]
+        command: ContactCommand,
+    },
+
+    /// Manage groups.
+    Group {
+        #[clap(subcommand)]
+        command: GroupCommand,
+    },
+
+    /// Export contacts to a specified file.
+    Export {
+        /// The path to the export file.
+        path: String,
+    },
+
+    /// Initialize the contact list (clears all data).
+    Init,
+}
+
+#[derive(Subcommand, Debug)]
+enum ContactCommand {
     /// List all contacts.
     List {
         /// Display pattern for contact names (e.g., "TITLE FIRST LAST").
@@ -44,15 +68,6 @@ enum Commands {
         id: String,
     },
 
-    /// Initialize the contact list (clears all data).
-    Init,
-
-    /// Export contacts to a specified file.
-    Export {
-        /// The path to the export file.
-        path: String,
-    },
-
     /// Find a contact by searching for text in their details.
     Find {
         /// The text to search for in contact details.
@@ -65,12 +80,6 @@ enum Commands {
         id: String,
     },
 
-    /// Find a contact then show detailed information for it.
-    Display {
-        /// The text to search for in contact details.
-        text: String,
-    },
-
     /// Add information to an existing contact.
     Add {
         /// The ID of the contact to modify.
@@ -79,26 +88,39 @@ enum Commands {
         #[clap(subcommand)]
         add_type: AddType,
     },
-
-    /// Manage groups.
-    Group {
-        #[clap(subcommand)]
-        command: GroupCommand,
-    },
 }
 
 #[derive(Subcommand, Debug)]
 enum GroupCommand {
+    /// List all groups.
+    List {
+        /// Show group IDs in the output.
+        #[clap(short = 'i', long)]
+        show_ids: bool,
+    },
     /// Create a new group.
-    Create {
+    New {
         /// The name of the group.
         name: String,
         /// The ID of the parent group (optional).
         #[clap(short, long)]
         parent: Option<String>,
     },
-    /// List all groups.
-    List,
+    /// Delete a group by its ID.
+    Del {
+        /// The ID of the group to delete.
+        id: String,
+    },
+    /// Find a group by searching for text in their name.
+    Find {
+        /// The text to search for in group names.
+        text: String,
+    },
+    /// Show detailed information for a specific group.
+    Show {
+        /// The ID of the group to display.
+        id: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -117,8 +139,8 @@ enum AddType {
     Phone,
     /// Add contact to a group.
     Group {
-        /// The ID of the group.
-        group_id: String,
+        /// The name or ID of the group.
+        name_or_id: String,
     },
     /// Link to another contact.
     Link {
@@ -130,6 +152,10 @@ enum AddType {
 }
 
 fn find_best_match<'a>(contacts: &'a [Contact], text: &str) -> Option<&'a Contact> {
+    if let Ok(id) = Uuid::parse_str(text) {
+        return contacts.iter().find(|c| c.identifier == id);
+    }
+
     let closure_score = |contact: &Contact| -> i32 {
         let name_score = if contact
             .format_name("TITLE FIRST MIDDLE LAST POST")
@@ -144,11 +170,27 @@ fn find_best_match<'a>(contacts: &'a [Contact], text: &str) -> Option<&'a Contac
     
     let best_match = contacts
         .iter()
-        .max_by_key(|contact| { closure_score(contact) });
+        .max_by_key(|contact| { closure_score(contact) })?;
 
-    if closure_score(best_match?) > 0 {
-        return Some(best_match?);
+    if closure_score(best_match) > 0 {
+        return Some(best_match);
     } else { return None };
+}
+
+fn find_group_best_match<'a>(groups: &'a [Group], text: &str) -> Option<&'a Group> {
+    if let Ok(id) = Uuid::parse_str(text) {
+        return Group::find_group_by_id_recursive(groups, &id);
+    }
+    
+    for group in groups {
+        if group.name.to_lowercase().contains(&text.to_lowercase()) {
+            return Some(group);
+        }
+        if let Some(found) = find_group_best_match(&group.subgroups, text) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn main() -> io::Result<()> {
@@ -158,214 +200,223 @@ fn main() -> io::Result<()> {
     let mut data = load_data(&contacts_file)?;
     
     match cli.command {
-        Commands::Init => {
-            fs::write(&contacts_file, "{\"contacts\": [], \"groups\": []}")
-                .expect("Failed to write empty contact file");
-        },
-        Commands::Export { path } => { 
-            save_data(&PathBuf::from(path), &data)?
-        },
-        Commands::List { pattern, show_ids } => {
-            for contact in &data.contacts {
-                if show_ids {
-                    println!("{}\t{}", contact.identifier, contact.format_name(&pattern));
-                } else {
-                    println!("{}", contact.format_name(&pattern));
-                }
-            }
-        },
-        Commands::New => {
-            let new_contact = Contact::new_from_input();
-            data.contacts.push(new_contact);
-
-            save_data(&contacts_file, &data)?;
-
-            println!("Contact added successfully!");
-        },
-        Commands::Del { id } => {
-            let id_uuid = match Uuid::parse_str(&id) {
-                Ok(parsed_id) => parsed_id,
-                Err(_) => {
-                    println!("Invalid ID format. Please provide a valid UUID.");
-                    return Ok(());
-                }
-            };
-            
-            let initial_len = data.contacts.len();
-            data.contacts.retain(|contact| contact.identifier != id_uuid);
-
-            if data.contacts.len() < initial_len {
-                save_data(&contacts_file, &data)?;
-
-                println!("Contact has been deleted.");
-            } else {
-                println!("No contact found with this id.");
-            }
-        },
-        Commands::Find { text } => {
-            if let Some(contact) = find_best_match(&data.contacts, &text) {
-                println!("{}", contact.identifier);
-            } else {
-                println!("No contact found matching '{}'.", text);
-            }
-        },
-        Commands::Show { id } => {
-            let id_uuid = match Uuid::parse_str(&id) {
-                Ok(parsed_id) => parsed_id,
-                Err(_) => {
-                    println!("Invalid ID format. Please provide a valid UUID.");
-                    return Ok(());
-                }
-            };
-
-            if let Some(contact) = data.contacts.iter().find(|c| c.identifier == id_uuid) {
-                println!("{}", contact);
-            } else {
-                println!("No contact found with ID: {}", id);
-            }
-        },
-        Commands::Display { text } => {
-            if let Some(contact) = find_best_match(&data.contacts, &text) {
-                println!("{contact}");
-            } else {
-                println!("No contact found matching '{text}'.");
-            }
-        },
-        Commands::Add { id, add_type } => {
-            let id_uuid = match Uuid::parse_str(&id) {
-                Ok(parsed_id) => parsed_id,
-                Err(_) => {
-                    println!("Invalid ID format. Please provide a valid UUID.");
-                    return Ok(());
-                }
-            };
-
-            // Handle link case separately to avoid borrowing issues
-            if let AddType::Link { other_id, relation_type } = &add_type {
-                let other_uuid = match Uuid::parse_str(other_id) {
-                    Ok(parsed_id) => parsed_id,
-                    Err(_) => {
-                        println!("Invalid other ID format. Please provide a valid UUID.");
-                        return Ok(());
+        Commands::Contact { command } => {
+            match command {
+                ContactCommand::List { pattern, show_ids } => {
+                    for contact in &data.contacts {
+                        if show_ids {
+                            println!("{}\t{}", contact.identifier, contact.format_name(&pattern));
+                        } else {
+                            println!("{}", contact.format_name(&pattern));
+                        }
                     }
-                };
-                
-                // Check if both contacts exist
-                let contact_exists = data.contacts.iter().any(|c| c.identifier == id_uuid);
-                let other_exists = data.contacts.iter().any(|c| c.identifier == other_uuid);
-                
-                if !contact_exists {
-                    println!("No contact found with ID: {}", id);
-                    return Ok(());
-                }
-                
-                if !other_exists {
-                    println!("No contact found with ID: {}", other_id);
-                    return Ok(());
-                }
-                
-                // Find both contacts and create bidirectional link
-                let mut contact_a_index = None;
-                let mut contact_b_index = None;
-                
-                for (index, contact) in data.contacts.iter().enumerate() {
-                    if contact.identifier == id_uuid {
-                        contact_a_index = Some(index);
-                    }
-                    if contact.identifier == other_uuid {
-                        contact_b_index = Some(index);
-                    }
-                }
-                
-                if let (Some(a_idx), Some(b_idx)) = (contact_a_index, contact_b_index) {
-                    let (contact_a, contact_b) = if a_idx < b_idx {
-                        let (left, right) = data.contacts.split_at_mut(b_idx);
-                        (&mut left[a_idx], &mut right[0])
+                },
+                ContactCommand::New => {
+                    let new_contact = Contact::new_from_input();
+                    data.contacts.push(new_contact);
+
+                    save_data(&contacts_file, &data)?;
+
+                    println!("Contact added successfully!");
+                },
+                ContactCommand::Del { id } => {
+                    let id_uuid = if let Some(contact) = find_best_match(&data.contacts, &id) {
+                        contact.identifier
                     } else {
-                        let (left, right) = data.contacts.split_at_mut(a_idx);
-                        (&mut right[0], &mut left[b_idx])
+                        println!("No contact found matching '{}'.", id);
+                        return Ok(());
                     };
                     
-                    if let Err(error) = Contact::create_bidirectional_link(contact_a, contact_b, relation_type.clone()) {
-                        println!("{}", error);
-                        return Ok(());
+                    let initial_len = data.contacts.len();
+                    data.contacts.retain(|contact| contact.identifier != id_uuid);
+
+                    if data.contacts.len() < initial_len {
+                        save_data(&contacts_file, &data)?;
+                        println!("Contact has been deleted.");
+                    } else {
+                        println!("No contact found with this id.");
                     }
-                }
-            } else {
-                // Handle other add types
-                if let Some(contact) = data.contacts.iter_mut().find(|c| c.identifier == id_uuid) {
-                    match add_type {
-                        AddType::Social => contact.add_social_interactive(),
-                        AddType::Birth => contact.add_birth_interactive(),
-                        AddType::Death => contact.add_death_interactive(),
-                        AddType::Gender => contact.add_gender_interactive(),
-                        AddType::Email => contact.add_email_interactive(),
-                        AddType::Phone => contact.add_phone_interactive(),
-                        AddType::Group { group_id } => {
-                            let g_uuid = match Uuid::parse_str(&group_id) {
-                                Ok(id) => id,
-                                Err(_) => {
-                                    println!("Invalid group ID format.");
-                                    return Ok(());
-                                }
+                },
+                ContactCommand::Find { text } => {
+                    if let Some(contact) = find_best_match(&data.contacts, &text) {
+                        println!("{}", contact.identifier);
+                    } else {
+                        println!("No contact found matching '{}'.", text);
+                    }
+                },
+                ContactCommand::Show { id } => {
+                    if let Some(contact) = find_best_match(&data.contacts, &id) {
+                        println!("{}", contact);
+                    } else {
+                        println!("No contact found matching '{}'.", id);
+                    }
+                },
+                ContactCommand::Add { id, add_type } => {
+                    let contact_identifier = if let Some(contact) = find_best_match(&data.contacts, &id) {
+                        contact.identifier
+                    } else {
+                        println!("No contact found matching '{}'.", id);
+                        return Ok(());
+                    };
+
+                    // Handle link case separately to avoid borrowing issues
+                    if let AddType::Link { other_id, relation_type } = &add_type {
+                        let other_identifier = if let Some(contact) = find_best_match(&data.contacts, other_id) {
+                            contact.identifier
+                        } else {
+                            println!("No contact found matching '{}'.", other_id);
+                            return Ok(());
+                        };
+                        
+                        // Find both contacts and create bidirectional link
+                        let mut contact_a_index = None;
+                        let mut contact_b_index = None;
+                        
+                        for (index, contact) in data.contacts.iter().enumerate() {
+                            if contact.identifier == contact_identifier {
+                                contact_a_index = Some(index);
+                            }
+                            if contact.identifier == other_identifier {
+                                contact_b_index = Some(index);
+                            }
+                        }
+                        
+                        if let (Some(a_idx), Some(b_idx)) = (contact_a_index, contact_b_index) {
+                            let (contact_a, contact_b) = if a_idx < b_idx {
+                                let (left, right) = data.contacts.split_at_mut(b_idx);
+                                (&mut left[a_idx], &mut right[0])
+                            } else {
+                                let (left, right) = data.contacts.split_at_mut(a_idx);
+                                (&mut right[0], &mut left[b_idx])
                             };
                             
-                            if !Group::contains_id_recursive(&data.groups, &g_uuid) {
-                                println!("Group not found with ID: {}", group_id);
+                            if let Err(error) = Contact::create_bidirectional_link(contact_a, contact_b, relation_type.clone()) {
+                                println!("{}", error);
                                 return Ok(());
                             }
-
-                            if contact.groups.is_none() {
-                                contact.groups = Some(std::collections::HashSet::new());
-                            }
-                            contact.groups.as_mut().unwrap().insert(g_uuid);
                         }
-                        AddType::Link { .. } => unreachable!(), // Already handled above
+                    } else {
+                        // Handle other add types
+                        if let Some(contact) = data.contacts.iter_mut().find(|c| c.identifier == contact_identifier) {
+                            match add_type {
+                                AddType::Social => contact.add_social_interactive(),
+                                AddType::Birth => contact.add_birth_interactive(),
+                                AddType::Death => contact.add_death_interactive(),
+                                AddType::Gender => contact.add_gender_interactive(),
+                                AddType::Email => contact.add_email_interactive(),
+                                AddType::Phone => contact.add_phone_interactive(),
+                                AddType::Group { name_or_id } => {
+                                    if let Some(group) = find_group_best_match(&data.groups, &name_or_id) {
+                                        if contact.groups.is_none() {
+                                            contact.groups = Some(std::collections::HashSet::new());
+                                        }
+                                        contact.groups.as_mut().unwrap().insert(group.identifier);
+                                        println!("Contact added to group '{}'.", group.name);
+                                    } else {
+                                        println!("No group found matching '{}'.", name_or_id);
+                                        return Ok(());
+                                    }
+                                }
+                                AddType::Link { .. } => unreachable!(), // Already handled above
+                            }
+                        }
                     }
-                } else {
-                    println!("No contact found with ID: {}", id);
-                    return Ok(());
-                }
+                    
+                    save_data(&contacts_file, &data)?;
+                    println!("Information added successfully!");
+                },
             }
-            
-            save_data(&contacts_file, &data)?;
-            println!("Information added successfully!");
         },
         Commands::Group { command } => {
             match command {
-                GroupCommand::Create { name, parent } => {
+                GroupCommand::List { show_ids } => {
+                    if data.groups.is_empty() {
+                        println!("No groups found.");
+                    } else {
+                        for group in &data.groups {
+                            group.display_recursive(0, show_ids);
+                        }
+                    }
+                }
+                GroupCommand::New { name, parent } => {
                     let new_group = Group::new(name);
                     
                     if let Some(parent_str) = parent {
-                        let parent_uuid = match Uuid::parse_str(&parent_str) {
-                            Ok(id) => id,
-                            Err(_) => {
-                                println!("Invalid parent group ID format.");
-                                return Ok(());
+                        let parent_id = find_group_best_match(&data.groups, &parent_str)
+                            .map(|g| g.identifier);
+
+                        if let Some(id) = parent_id {
+                            if Group::find_parent_and_add_recursive(&mut data.groups, &id, new_group.clone()) {
+                                println!("Subgroup created with ID: {}", new_group.identifier);
+                            } else {
+                                println!("Failed to add subgroup.");
                             }
-                        };
-                        
-                        if Group::find_parent_and_add_recursive(&mut data.groups, &parent_uuid, new_group.clone()) {
-                            println!("Subgroup created with ID: {}", new_group.identifier);
                         } else {
-                            println!("Parent group not found.");
+                            println!("Parent group matching '{}' not found.", parent_str);
+                            return Ok(());
                         }
                     } else {
                         println!("Group created with ID: {}", new_group.identifier);
                         data.groups.push(new_group);
                     }
                 }
-                GroupCommand::List => {
-                    if data.groups.is_empty() {
-                        println!("No groups found.");
+                GroupCommand::Del { id } => {
+                    let id_uuid = if let Some(group) = find_group_best_match(&data.groups, &id) {
+                        group.identifier
                     } else {
-                        for group in &data.groups {
-                            group.display_recursive(0);
+                        println!("No group found matching '{}'.", id);
+                        return Ok(());
+                    };
+
+                    if Group::delete_group_recursive(&mut data.groups, &id_uuid) {
+                        println!("Group deleted successfully.");
+                        // Optional: remove this group from all contacts
+                        for contact in &mut data.contacts {
+                            if let Some(ref mut contact_groups) = contact.groups {
+                                contact_groups.remove(&id_uuid);
+                            }
                         }
+                    } else {
+                        println!("Group not found.");
+                    }
+                }
+                GroupCommand::Find { text } => {
+                    if let Some(group) = find_group_best_match(&data.groups, &text) {
+                        println!("{} ({})", group.name, group.identifier);
+                    } else {
+                        println!("No group found matching '{}'.", text);
+                    }
+                }
+                GroupCommand::Show { id } => {
+                    if let Some(group) = find_group_best_match(&data.groups, &id) {
+                        println!("Group: {}", group.name);
+                        println!("ID: {}", group.identifier);
+                        
+                        let members: Vec<_> = data.contacts.iter()
+                            .filter(|c| c.groups.as_ref().map_or(false, |g| g.contains(&group.identifier)))
+                            .collect();
+                        
+                        if members.is_empty() {
+                            println!("Members: None");
+                        } else {
+                            println!("Members:");
+                            for m in members {
+                                println!("  - {} ({})", m.format_name("FIRST LAST"), m.identifier);
+                            }
+                        }
+                    } else {
+                        println!("Group not found matching '{}'.", id);
                     }
                 }
             }
             save_data(&contacts_file, &data)?;
+        },
+        Commands::Export { path } => { 
+            save_data(&PathBuf::from(path), &data)?
+        },
+        Commands::Init => {
+            fs::write(&contacts_file, "{\"contacts\": [], \"groups\": []}")
+                .expect("Failed to write empty contact file");
         },
     }
 

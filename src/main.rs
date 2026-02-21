@@ -16,7 +16,7 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[clap(name = "tupp", version = "1.2.0", author = "mtripnaux & gaiadrd")]
+#[clap(name = "tupp", version = "1.2.1", author = "mtripnaux & gaiadrd")]
 struct Cli {
     #[clap(subcommand)]
     command: Commands,

@@ -1,6 +1,26 @@
 use crate::unwrap::UnwrapString;
 use serde::{ Deserialize, Serialize };
 use std::fmt;
+use std::collections::HashSet;
+use crate::contact::Contact;
+use crate::group::Group;
+
+/* GLOBAL DATA STRUCTURE */
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TuppData {
+    pub contacts: Vec<Contact>,
+    pub groups: Vec<Group>,
+}
+
+impl TuppData {
+    pub fn new() -> Self {
+        Self {
+            contacts: Vec::new(),
+            groups: Vec::new(),
+        }
+    }
+}
 
 /* BASIC STRUCTURES */
 

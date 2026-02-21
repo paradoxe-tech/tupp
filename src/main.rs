@@ -16,7 +16,7 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[clap(name = "tupp", version = "1.1.0", author = "paradoxe-tech & floriandrd")]
+#[clap(name = "tupp", version = "1.2.0", author = "mtripnaux & gaiadrd")]
 struct Cli {
     #[clap(subcommand)]
     command: Commands,
@@ -79,6 +79,26 @@ enum Commands {
         #[clap(subcommand)]
         add_type: AddType,
     },
+
+    /// Manage groups.
+    Group {
+        #[clap(subcommand)]
+        command: GroupCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum GroupCommand {
+    /// Create a new group.
+    Create {
+        /// The name of the group.
+        name: String,
+        /// The ID of the parent group (optional).
+        #[clap(short, long)]
+        parent: Option<String>,
+    },
+    /// List all groups.
+    List,
 }
 
 #[derive(Subcommand, Debug)]
@@ -95,6 +115,11 @@ enum AddType {
     Email,
     /// Add a phone number.
     Phone,
+    /// Add contact to a group.
+    Group {
+        /// The ID of the group.
+        group_id: String,
+    },
     /// Link to another contact.
     Link {
         /// The ID of the contact to link to.
@@ -130,18 +155,18 @@ fn main() -> io::Result<()> {
     let cli = Cli::parse();
 
     let contacts_file = ensure_config_file()?;
-    let mut contacts = load_contacts(&contacts_file)?;
+    let mut data = load_data(&contacts_file)?;
     
     match cli.command {
         Commands::Init => {
-            fs::write(&contacts_file, "[]")
+            fs::write(&contacts_file, "{\"contacts\": [], \"groups\": []}")
                 .expect("Failed to write empty contact file");
         },
         Commands::Export { path } => { 
-            save_contacts(&PathBuf::from(path), &contacts)?
+            save_data(&PathBuf::from(path), &data)?
         },
         Commands::List { pattern, show_ids } => {
-            for contact in contacts {
+            for contact in &data.contacts {
                 if show_ids {
                     println!("{}\t{}", contact.identifier, contact.format_name(&pattern));
                 } else {
@@ -151,9 +176,9 @@ fn main() -> io::Result<()> {
         },
         Commands::New => {
             let new_contact = Contact::new_from_input();
-            contacts.push(new_contact);
+            data.contacts.push(new_contact);
 
-            save_contacts(&contacts_file, &contacts)?;
+            save_data(&contacts_file, &data)?;
 
             println!("Contact added successfully!");
         },
@@ -166,11 +191,11 @@ fn main() -> io::Result<()> {
                 }
             };
             
-            let initial_len = contacts.len();
-            contacts.retain(|contact| contact.identifier != id_uuid);
+            let initial_len = data.contacts.len();
+            data.contacts.retain(|contact| contact.identifier != id_uuid);
 
-            if contacts.len() < initial_len {
-                save_contacts(&contacts_file, &contacts)?;
+            if data.contacts.len() < initial_len {
+                save_data(&contacts_file, &data)?;
 
                 println!("Contact has been deleted.");
             } else {
@@ -178,7 +203,7 @@ fn main() -> io::Result<()> {
             }
         },
         Commands::Find { text } => {
-            if let Some(contact) = find_best_match(&contacts, &text) {
+            if let Some(contact) = find_best_match(&data.contacts, &text) {
                 println!("{}", contact.identifier);
             } else {
                 println!("No contact found matching '{}'.", text);
@@ -193,14 +218,14 @@ fn main() -> io::Result<()> {
                 }
             };
 
-            if let Some(contact) = contacts.iter().find(|c| c.identifier == id_uuid) {
+            if let Some(contact) = data.contacts.iter().find(|c| c.identifier == id_uuid) {
                 println!("{}", contact);
             } else {
                 println!("No contact found with ID: {}", id);
             }
         },
         Commands::Display { text } => {
-            if let Some(contact) = find_best_match(&contacts, &text) {
+            if let Some(contact) = find_best_match(&data.contacts, &text) {
                 println!("{contact}");
             } else {
                 println!("No contact found matching '{text}'.");
@@ -226,8 +251,8 @@ fn main() -> io::Result<()> {
                 };
                 
                 // Check if both contacts exist
-                let contact_exists = contacts.iter().any(|c| c.identifier == id_uuid);
-                let other_exists = contacts.iter().any(|c| c.identifier == other_uuid);
+                let contact_exists = data.contacts.iter().any(|c| c.identifier == id_uuid);
+                let other_exists = data.contacts.iter().any(|c| c.identifier == other_uuid);
                 
                 if !contact_exists {
                     println!("No contact found with ID: {}", id);
@@ -243,7 +268,7 @@ fn main() -> io::Result<()> {
                 let mut contact_a_index = None;
                 let mut contact_b_index = None;
                 
-                for (index, contact) in contacts.iter().enumerate() {
+                for (index, contact) in data.contacts.iter().enumerate() {
                     if contact.identifier == id_uuid {
                         contact_a_index = Some(index);
                     }
@@ -254,10 +279,10 @@ fn main() -> io::Result<()> {
                 
                 if let (Some(a_idx), Some(b_idx)) = (contact_a_index, contact_b_index) {
                     let (contact_a, contact_b) = if a_idx < b_idx {
-                        let (left, right) = contacts.split_at_mut(b_idx);
+                        let (left, right) = data.contacts.split_at_mut(b_idx);
                         (&mut left[a_idx], &mut right[0])
                     } else {
-                        let (left, right) = contacts.split_at_mut(a_idx);
+                        let (left, right) = data.contacts.split_at_mut(a_idx);
                         (&mut right[0], &mut left[b_idx])
                     };
                     
@@ -268,7 +293,7 @@ fn main() -> io::Result<()> {
                 }
             } else {
                 // Handle other add types
-                if let Some(contact) = contacts.iter_mut().find(|c| c.identifier == id_uuid) {
+                if let Some(contact) = data.contacts.iter_mut().find(|c| c.identifier == id_uuid) {
                     match add_type {
                         AddType::Social => contact.add_social_interactive(),
                         AddType::Birth => contact.add_birth_interactive(),
@@ -276,6 +301,25 @@ fn main() -> io::Result<()> {
                         AddType::Gender => contact.add_gender_interactive(),
                         AddType::Email => contact.add_email_interactive(),
                         AddType::Phone => contact.add_phone_interactive(),
+                        AddType::Group { group_id } => {
+                            let g_uuid = match Uuid::parse_str(&group_id) {
+                                Ok(id) => id,
+                                Err(_) => {
+                                    println!("Invalid group ID format.");
+                                    return Ok(());
+                                }
+                            };
+                            
+                            if !Group::contains_id_recursive(&data.groups, &g_uuid) {
+                                println!("Group not found with ID: {}", group_id);
+                                return Ok(());
+                            }
+
+                            if contact.groups.is_none() {
+                                contact.groups = Some(std::collections::HashSet::new());
+                            }
+                            contact.groups.as_mut().unwrap().insert(g_uuid);
+                        }
                         AddType::Link { .. } => unreachable!(), // Already handled above
                     }
                 } else {
@@ -284,10 +328,45 @@ fn main() -> io::Result<()> {
                 }
             }
             
-            save_contacts(&contacts_file, &contacts)?;
+            save_data(&contacts_file, &data)?;
             println!("Information added successfully!");
         },
-        
+        Commands::Group { command } => {
+            match command {
+                GroupCommand::Create { name, parent } => {
+                    let new_group = Group::new(name);
+                    
+                    if let Some(parent_str) = parent {
+                        let parent_uuid = match Uuid::parse_str(&parent_str) {
+                            Ok(id) => id,
+                            Err(_) => {
+                                println!("Invalid parent group ID format.");
+                                return Ok(());
+                            }
+                        };
+                        
+                        if Group::find_parent_and_add_recursive(&mut data.groups, &parent_uuid, new_group.clone()) {
+                            println!("Subgroup created with ID: {}", new_group.identifier);
+                        } else {
+                            println!("Parent group not found.");
+                        }
+                    } else {
+                        println!("Group created with ID: {}", new_group.identifier);
+                        data.groups.push(new_group);
+                    }
+                }
+                GroupCommand::List => {
+                    if data.groups.is_empty() {
+                        println!("No groups found.");
+                    } else {
+                        for group in &data.groups {
+                            group.display_recursive(0);
+                        }
+                    }
+                }
+            }
+            save_data(&contacts_file, &data)?;
+        },
     }
 
     Ok(())

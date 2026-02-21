@@ -17,7 +17,7 @@ pub struct Contact {
     pub emails: Option<Vec<Email>>,
     pub phones: Option<Vec<PhoneNumber>>,
     pub socials: Option<Vec<Social>>,
-    pub groups: Option<HashSet<Group>>,
+    pub groups: Option<HashSet<Uuid>>,
     pub links: Option<Vec<Link>>,
 }
 
@@ -412,6 +412,13 @@ impl fmt::Display for Contact {
                     "\t  {}",
                     link
                 )?;
+            }
+        }
+
+        if let Some(groups) = &self.groups {
+            writeln!(f, "\tGroups:")?;
+            for group_id in groups {
+                writeln!(f, "\t  {}", group_id)?;
             }
         }
 

@@ -1,9 +1,19 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Tupp Contacts (v1.1.0)",
+  "title": "Tupp Contacts (v1.2.0)",
   "description": "JSON schema for a list of contacts used by the tupp application",
-  "type": "array",
-  "items": { "$ref": "#/definitions/Contact" },
+  "type": "object",
+  "required": ["contacts", "groups"],
+  "properties": {
+    "contacts": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Contact" }
+    },
+    "groups": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Group" }
+    }
+  },
 
   "definitions": {
     "Contact": {
@@ -20,7 +30,10 @@
         "emails": { "type": "array", "items": { "$ref": "#/definitions/Email" } },
         "phones": { "type": "array", "items": { "$ref": "#/definitions/PhoneNumber" } },
         "socials": { "type": "array", "items": { "$ref": "#/definitions/Social" } },
-        "groups": { "type": "array", "items": { "$ref": "#/definitions/Group" } },
+        "groups": {
+          "type": "array",
+          "items": { "type": "string", "format": "uuid" }
+        },
         "links": { "type": "array", "items": { "$ref": "#/definitions/Link" } }
       },
       "additionalProperties": false
@@ -116,13 +129,14 @@
     "Group": {
       "type": "object",
       "properties": {
+        "identifier": { "type": "string", "format": "uuid" },
         "name": { "type": "string" },
         "subgroups": {
           "type": "array",
           "items": { "$ref": "#/definitions/Group" }
         }
       },
-      "required": ["name"],
+      "required": ["identifier", "name"],
       "additionalProperties": false
     }
   },

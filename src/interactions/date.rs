@@ -107,3 +107,25 @@ pub fn create_date_interactive() -> Date {
         second,
     }
 }
+
+pub fn create_date(
+    year: Option<i32>,
+    month: Option<u8>,
+    day: Option<u8>,
+    hour: Option<u8>,
+    minute: Option<u8>,
+    second: Option<u8>
+) -> Date {
+    if year.is_some() || month.is_some() || day.is_some() || hour.is_some() || minute.is_some() || second.is_some() {
+        Date {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+        }
+    } else {
+        create_date_interactive()
+    }
+}

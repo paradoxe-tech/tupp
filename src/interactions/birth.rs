@@ -1,6 +1,30 @@
 use dialoguer::{Confirm, Input};
 
-pub fn add_birth_to_contact(contact: &mut crate::contact::Contact) {
+pub fn add_birth_to_contact(
+    contact: &mut crate::contact::Contact,
+    birth_first_name: Option<String>,
+    birth_middle_name: Option<String>,
+    birth_last_name: Option<String>,
+    day: Option<u8>,
+    month: Option<u8>,
+    year: Option<i32>,
+) {
+    if birth_first_name.is_some() || birth_middle_name.is_some() || birth_last_name.is_some() || day.is_some() || month.is_some() || year.is_some() {
+        if let Some(first) = birth_first_name {
+            contact.identity.birth_first_name = Some(first);
+        }
+        if let Some(middle) = birth_middle_name {
+            contact.identity.birth_middle_name = Some(middle);
+        }
+        if let Some(last) = birth_last_name {
+            contact.identity.birth_last_name = Some(last);
+        }
+        if day.is_some() || month.is_some() || year.is_some() {
+            contact.identity.birth_date = Some(crate::interactions::date::create_date(year, month, day, None, None, None));
+        }
+        return;
+    }
+
     if Confirm::new()
         .with_prompt("Do you want to add a birth date?")
         .default(true)

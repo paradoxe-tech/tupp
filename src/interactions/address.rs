@@ -124,3 +124,27 @@ pub fn create_address_interactive() -> Address {
         number,
     }
 }
+
+pub fn create_address(
+    label: Option<String>,
+    country: Option<String>,
+    region: Option<String>,
+    city: Option<String>,
+    post_code: Option<String>,
+    street: Option<String>,
+    number: Option<String>,
+) -> Address {
+    if label.is_some() || country.is_some() || region.is_some() || city.is_some() || post_code.is_some() || street.is_some() || number.is_some() {
+        Address {
+            label,
+            country,
+            region,
+            city,
+            post_code,
+            street,
+            number,
+        }
+    } else {
+        create_address_interactive()
+    }
+}

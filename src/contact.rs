@@ -58,9 +58,45 @@ impl Contact {
         );
     }
 
-    pub fn new_from_input() -> Self {
+    pub fn new_from_input(
+        title_f: Option<String>,
+        first_name_f: Option<String>,
+        middle_name_f: Option<String>,
+        last_name_f: Option<String>,
+        post_nominal_f: Option<String>,
+        gender_f: Option<String>,
+    ) -> Self {
+        let bypass = first_name_f.is_some() && last_name_f.is_some();
 
-        let gender: Gender = {
+        let gender_val: Gender = if let Some(g_str) = gender_f {
+            match g_str.to_lowercase().as_str() {
+                "male" => Gender::Male,
+                "female" => Gender::Female,
+                "non-binary" | "nonbinary" => Gender::NonBinary,
+                _ => {
+                    if bypass {
+                        Gender::Male
+                    } else {
+                        println!("Invalid gender '{}', falling back to interactive selection.", g_str);
+                        let selection = Select::new()
+                            .with_prompt("Select gender")
+                            .items(&["Male", "Female", "Non-binary"])
+                            .default(0)
+                            .interact()
+                            .unwrap();
+                        
+                        match selection {
+                            0 => Gender::Male,
+                            1 => Gender::Female,
+                            2 => Gender::NonBinary,
+                            _ => Gender::Male,
+                        }
+                    }
+                }
+            }
+        } else if bypass {
+            Gender::Male
+        } else {
             let selection = Select::new()
                 .with_prompt("Select gender")
                 .items(&["Male", "Female", "Non-binary"])
@@ -76,7 +112,11 @@ impl Contact {
             }
         };
 
-        let title: Option<String> = if Confirm::new()
+        let title: Option<String> = if title_f.is_some() {
+            title_f
+        } else if bypass {
+            None
+        } else if Confirm::new()
             .with_prompt("Do you want to enter a title?")
             .default(false)
             .interact().unwrap() {
@@ -87,11 +127,19 @@ impl Contact {
                 )
             } else { None };
 
-        let first_name: String = Input::new()
-            .with_prompt("First Name")
-            .interact_text().unwrap();
+        let first_name_val: String = if let Some(fn_val) = first_name_f {
+            fn_val
+        } else {
+            Input::new()
+                .with_prompt("First Name")
+                .interact_text().unwrap()
+        };
 
-        let middle_name: Option<String> = if Confirm::new()
+        let middle_name: Option<String> = if middle_name_f.is_some() {
+            middle_name_f
+        } else if bypass {
+            None
+        } else if Confirm::new()
             .with_prompt("Do you want to enter a middle name?")
             .default(false)
             .interact().unwrap() {
@@ -102,11 +150,19 @@ impl Contact {
                 )
             } else { None };
 
-        let last_name: String = Input::new()
-            .with_prompt("Last Name")
-            .interact_text().unwrap();
+        let last_name_val: String = if let Some(ln_val) = last_name_f {
+            ln_val
+        } else {
+            Input::new()
+                .with_prompt("Last Name")
+                .interact_text().unwrap()
+        };
 
-        let post_nominal: Option<String> = if Confirm::new()
+        let post_nominal: Option<String> = if post_nominal_f.is_some() {
+            post_nominal_f
+        } else if bypass {
+            None
+        } else if Confirm::new()
             .with_prompt("Do you want to enter a post-nominal title?")
             .default(false)
             .interact().unwrap() {
@@ -117,21 +173,27 @@ impl Contact {
                 )
             } else { None };
 
-        let emails: Option<Vec<Email>> = if Confirm::new()
+        let emails: Option<Vec<Email>> = if bypass {
+            None
+        } else if Confirm::new()
             .with_prompt("Do you want to enter an email?")
             .default(false)
             .interact().unwrap() {
                 Some(vec![interactions::create_email_interactive()])
             } else { None };
 
-        let phones: Option<Vec<PhoneNumber>> = if Confirm::new()
+        let phones: Option<Vec<PhoneNumber>> = if bypass {
+            None
+        } else if Confirm::new()
             .with_prompt("Do you want to enter a phone number?")
             .default(true)
             .interact().unwrap() {
                 Some(vec![interactions::create_phone_interactive()])
             } else { None };
 
-        let socials: Option<Vec<Social>> = if Confirm::new()
+        let socials: Option<Vec<Social>> = if bypass {
+            None
+        } else if Confirm::new()
             .with_prompt("Do you want to enter social media information?")
             .default(false)
             .interact().unwrap() {
@@ -142,11 +204,11 @@ impl Contact {
             identifier: Uuid::new_v4(),
             identity: Identity {
                 title,
-                first_name: Some(first_name.clone()),
+                first_name: Some(first_name_val.clone()),
                 middle_name: middle_name.clone(),
-                last_name: Some(last_name.clone()),
+                last_name: Some(last_name_val.clone()),
                 post_nominal,
-                gender: Some(gender),
+                gender: Some(gender_val),
                 birth_date: None,
                 birth_location: None,
                 birth_first_name: None,
@@ -165,28 +227,41 @@ impl Contact {
         }
     }
 
-    pub fn add_social_interactive(&mut self) {
-        interactions::add_social_to_contact(self);
+    pub fn add_social_interactive(&mut self, network: Option<String>, username: Option<String>) {
+        interactions::add_social_to_contact(self, network, username);
     }
 
-    pub fn add_birth_interactive(&mut self) {
-        interactions::add_birth_to_contact(self);
+    pub fn add_birth_interactive(
+        &mut self,
+        first_name: Option<String>,
+        middle_name: Option<String>,
+        last_name: Option<String>,
+        day: Option<u8>,
+        month: Option<u8>,
+        year: Option<i32>,
+    ) {
+        interactions::add_birth_to_contact(self, first_name, middle_name, last_name, day, month, year);
     }
 
-    pub fn add_death_interactive(&mut self) {
-        interactions::add_death_to_contact(self);
+    pub fn add_death_interactive(
+        &mut self,
+        day: Option<u8>,
+        month: Option<u8>,
+        year: Option<i32>,
+    ) {
+        interactions::add_death_to_contact(self, day, month, year);
     }
 
-    pub fn add_gender_interactive(&mut self) {
-        interactions::add_gender_to_contact(self);
+    pub fn add_gender_interactive(&mut self, gender: Option<String>) {
+        interactions::add_gender_to_contact(self, gender);
     }
 
-    pub fn add_email_interactive(&mut self) {
-        interactions::add_email_to_contact(self);
+    pub fn add_email_interactive(&mut self, label: Option<String>, address: Option<String>) {
+        interactions::add_email_to_contact(self, label, address);
     }
 
-    pub fn add_phone_interactive(&mut self) {
-        interactions::add_phone_to_contact(self);
+    pub fn add_phone_interactive(&mut self, label: Option<String>, indicator: Option<u16>, number: Option<u32>) {
+        interactions::add_phone_to_contact(self, label, indicator, number);
     }
 
     pub fn add_link_interactive(&mut self, other_id: Uuid, relation_type: String) {

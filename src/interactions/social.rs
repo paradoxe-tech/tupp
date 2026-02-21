@@ -18,8 +18,19 @@ pub fn create_social_interactive() -> Social {
     }
 }
 
-pub fn add_social_to_contact(contact: &mut crate::contact::Contact) {
-    let new_social = create_social_interactive();
+pub fn add_social_to_contact(
+    contact: &mut crate::contact::Contact,
+    network: Option<String>,
+    username: Option<String>,
+) {
+    let new_social = if let (Some(network), Some(username)) = (network, username) {
+        Social {
+            network,
+            username: Some(username),
+        }
+    } else {
+        create_social_interactive()
+    };
 
     if let Some(ref mut social_vec) = contact.socials {
         social_vec.push(new_social);

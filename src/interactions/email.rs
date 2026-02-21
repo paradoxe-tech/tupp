@@ -29,8 +29,19 @@ pub fn create_email_interactive() -> Email {
     }
 }
 
-pub fn add_email_to_contact(contact: &mut crate::contact::Contact) {
-    let new_email = create_email_interactive();
+pub fn add_email_to_contact(
+    contact: &mut crate::contact::Contact,
+    label: Option<String>,
+    address: Option<String>,
+) {
+    let new_email = if let Some(address) = address {
+        Email {
+            label: Some(label.unwrap_or_else(|| "default".to_string())),
+            address: Some(address),
+        }
+    } else {
+        create_email_interactive()
+    };
 
     if let Some(ref mut email_vec) = contact.emails {
         email_vec.push(new_email);

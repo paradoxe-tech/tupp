@@ -60,7 +60,26 @@ enum ContactCommand {
     },
 
     /// Register a new contact.
-    New,
+    New {
+        /// The title of the contact.
+        #[clap(short = 't', long)]
+        title: Option<String>,
+        /// The first name of the contact.
+        #[clap(short = 'f', long)]
+        first_name: Option<String>,
+        /// The middle name of the contact.
+        #[clap(short = 'm', long)]
+        middle_name: Option<String>,
+        /// The last name of the contact.
+        #[clap(short = 'l', long)]
+        last_name: Option<String>,
+        /// The post-nominal title of the contact.
+        #[clap(short = 'p', long)]
+        post_nominal: Option<String>,
+        /// The gender of the contact.
+        #[clap(short = 'g', long)]
+        gender: Option<String>,
+    },
 
     /// Delete a contact by its ID.
     Del {
@@ -126,17 +145,57 @@ enum GroupCommand {
 #[derive(Subcommand, Debug)]
 enum AddType {
     /// Add a social media account.
-    Social,
+    Social {
+        #[clap(short = 'n', long)]
+        network: Option<String>,
+        #[clap(short = 'u', long)]
+        username: Option<String>,
+    },
     /// Add birth information.
-    Birth,
+    Birth {
+        #[clap(short = 'f', long)]
+        first_name: Option<String>,
+        #[clap(short = 'm', long)]
+        middle_name: Option<String>,
+        #[clap(short = 'l', long)]
+        last_name: Option<String>,
+        #[clap(short = 'd', long)]
+        day: Option<u8>,
+        #[clap(short = 'M', long)]
+        month: Option<u8>,
+        #[clap(short = 'y', long)]
+        year: Option<i32>,
+    },
     /// Add death information.
-    Death,
+    Death {
+        #[clap(short = 'd', long)]
+        day: Option<u8>,
+        #[clap(short = 'M', long)]
+        month: Option<u8>,
+        #[clap(short = 'y', long)]
+        year: Option<i32>,
+    },
     /// Add gender information.
-    Gender,
+    Gender {
+        #[clap(short = 'g', long)]
+        gender: Option<String>,
+    },
     /// Add an email address.
-    Email,
+    Email {
+        #[clap(short = 'l', long)]
+        label: Option<String>,
+        #[clap(short = 'a', long)]
+        address: Option<String>,
+    },
     /// Add a phone number.
-    Phone,
+    Phone {
+        #[clap(short = 'l', long)]
+        label: Option<String>,
+        #[clap(short = 'i', long)]
+        indicator: Option<u16>,
+        #[clap(short = 'n', long)]
+        number: Option<u32>,
+    },
     /// Add contact to a group.
     Group {
         /// The name or ID of the group.
@@ -211,8 +270,8 @@ fn main() -> io::Result<()> {
                         }
                     }
                 },
-                ContactCommand::New => {
-                    let new_contact = Contact::new_from_input();
+                ContactCommand::New { title, first_name, middle_name, last_name, post_nominal, gender } => {
+                    let new_contact = Contact::new_from_input(title, first_name, middle_name, last_name, post_nominal, gender);
                     data.contacts.push(new_contact);
 
                     save_data(&contacts_file, &data)?;
@@ -299,12 +358,12 @@ fn main() -> io::Result<()> {
                         // Handle other add types
                         if let Some(contact) = data.contacts.iter_mut().find(|c| c.identifier == contact_identifier) {
                             match add_type {
-                                AddType::Social => contact.add_social_interactive(),
-                                AddType::Birth => contact.add_birth_interactive(),
-                                AddType::Death => contact.add_death_interactive(),
-                                AddType::Gender => contact.add_gender_interactive(),
-                                AddType::Email => contact.add_email_interactive(),
-                                AddType::Phone => contact.add_phone_interactive(),
+                                AddType::Social { network, username } => contact.add_social_interactive(network, username),
+                                AddType::Birth { first_name, middle_name, last_name, day, month, year } => contact.add_birth_interactive(first_name, middle_name, last_name, day, month, year),
+                                AddType::Death { day, month, year } => contact.add_death_interactive(day, month, year),
+                                AddType::Gender { gender } => contact.add_gender_interactive(gender),
+                                AddType::Email { label, address } => contact.add_email_interactive(label, address),
+                                AddType::Phone { label, indicator, number } => contact.add_phone_interactive(label, indicator, number),
                                 AddType::Group { name_or_id } => {
                                     if let Some(group) = find_group_best_match(&data.groups, &name_or_id) {
                                         if contact.groups.is_none() {

@@ -61,6 +61,22 @@ impl Group {
         false
     }
 
+    pub fn find_best_match<'a>(groups: &'a [Group], text: &str) -> Option<&'a Group> {
+        if let Ok(id) = Uuid::parse_str(text) {
+             return Self::find_group_by_id_recursive(groups, &id);
+        }
+        
+        for group in groups {
+            if group.name.to_lowercase().contains(&text.to_lowercase()) {
+                return Some(group);
+            }
+            if let Some(found) = Self::find_best_match(&group.subgroups, text) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
     pub fn find_group_by_id_recursive<'a>(groups: &'a [Group], id: &Uuid) -> Option<&'a Group> {
         for group in groups {
             if &group.identifier == id {

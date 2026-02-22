@@ -37,6 +37,32 @@ pub enum Relation {
 }
 
 impl Contact {
+    pub fn find_best_match<'a>(contacts: &'a [Contact], text: &str) -> Option<&'a Contact> {
+        if let Ok(id) = Uuid::parse_str(text) {
+            return contacts.iter().find(|c| c.identifier == id);
+        }
+
+        let closure_score = |contact: &Contact| -> i32 {
+            let name_score = if contact
+                .format_name("TITLE FIRST MIDDLE LAST POST")
+                .to_lowercase()
+                .contains(
+                    &crate::sanitize::trim_extra_spaces(text)
+                    .to_lowercase()
+                ) { 1 } else { 0 };
+            
+            return name_score
+        };
+        
+        let best_match = contacts
+            .iter()
+            .max_by_key(|contact| { closure_score(contact) })?;
+
+        if closure_score(best_match) > 0 {
+            return Some(best_match);
+        } else { return None };
+    }
+
     pub fn format_name(&self, pattern: &str) -> String {
         let title = self.identity.title.clone().unwrap_or_default();
         let first_name = self.identity.first_name.clone().unwrap_or_default();
@@ -53,7 +79,7 @@ impl Contact {
                 .replace("POST", &post_nominal)
         );
     }
-    
+
     pub fn create_bidirectional_link(
         contact_a: &mut Contact,
         contact_b: &mut Contact,

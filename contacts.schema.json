@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Tupp Contacts (v1.2.1)",
+  "title": "Tupp Contacts (v1.2.2)",
   "description": "JSON schema for a list of contacts used by the tupp application",
   "type": "object",
   "required": ["contacts", "groups"],

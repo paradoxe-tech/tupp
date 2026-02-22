@@ -44,6 +44,9 @@ enum Commands {
 
     /// Initialize the contact list (clears all data).
     Init,
+
+    /// Show the path to the data file.
+    Where,
 }
 
 #[derive(Subcommand, Debug)]
@@ -567,6 +570,9 @@ fn main() -> Result<(), TuppError> {
         Commands::Init => {
             fs::write(&contacts_file, "{\"contacts\": [], \"groups\": []}")
                 .expect("Failed to write empty contact file");
+        },
+        Commands::Where => {
+            println!("{}", contacts_file.display());
         },
     }
 

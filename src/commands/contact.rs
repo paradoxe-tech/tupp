@@ -98,12 +98,11 @@ pub fn handle_contact_command(
                             }
                         }
                     },
-                    AddType::Social { network, .. } => {
-                        if let Some(network) = network {
-                            if let Some(socials) = &contact.socials {
-                                if socials.iter().any(|s| &s.network == network) {
-                                    return Err(TuppError::Duplicate(format!("Social network '{}' already exists", network)));
-                                }
+                    AddType::Social { label, .. } => {
+                        let label_str = label.clone().unwrap_or_else(|| "default".to_string());
+                        if let Some(socials) = &contact.socials {
+                            if socials.iter().any(|s| s.label.as_deref() == Some(&label_str)) {
+                                return Err(TuppError::Duplicate(format!("Social label '{}' already exists", label_str)));
                             }
                         }
                     },
@@ -168,7 +167,12 @@ pub fn handle_contact_command(
                 // Handle other add types
                 if let Some(contact) = data.contacts.iter_mut().find(|c| c.identifier == contact_identifier) {
                     match add_type {
-                        AddType::Social { network, username } => interactions::add_social_to_contact(contact, network, username),
+                        AddType::Social { label, network, username } => {
+                             let success = interactions::add_social_to_contact(contact, label, network, username);
+                            if !success {
+                                return Ok(());
+                            }
+                        },
                         AddType::Birth { first_name, middle_name, last_name, day, month, year } => interactions::add_birth_to_contact(contact, first_name, middle_name, last_name, day, month, year),
                         AddType::Death { day, month, year } => interactions::add_death_to_contact(contact, day, month, year),
                         AddType::Gender { gender } => interactions::add_gender_to_contact(contact, gender),

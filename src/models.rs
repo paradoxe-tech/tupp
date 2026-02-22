@@ -80,6 +80,7 @@ impl fmt::Display for PhoneNumber {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Social {
+    pub label: Option<String>,
     pub network: String,
     pub username: Option<String>,
 }
@@ -88,7 +89,8 @@ impl fmt::Display for Social {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}: {}",
+            "{}: {} {}",
+            self.label.as_deref().unwrap_or("N/A"),
             self.network,
             self.username.as_deref().unwrap_or("N/A")
         )?;

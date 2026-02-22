@@ -134,6 +134,8 @@ pub enum GroupCommand {
 pub enum AddType {
     /// Add a social media account.
     Social {
+        #[clap(short = 'l', long)]
+        label: Option<String>,
         #[clap(short = 'n', long)]
         network: Option<String>,
         #[clap(short = 'u', long)]

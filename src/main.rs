@@ -328,13 +328,69 @@ fn main() -> io::Result<()> {
                     }
                 },
                 ContactCommand::Add { id, add_type } => {
-                    let contact_identifier = if let Some(contact) = find_best_match(&data.contacts, &id) {
-                        contact.identifier
-                    } else {
-                        println!("No contact found matching '{}'.", id);
-                        return Ok(());
-                    };
-
+                    // Check for duplicate for the type being added
+                    if let Some(contact) = find_best_match(&data.contacts, &id) {
+                        match &add_type {
+                            AddType::Email { label, .. } => {
+                                let label_str = label.clone().unwrap_or_else(|| "default".to_string());
+                                if let Some(emails) = &contact.emails {
+                                    if emails.iter().any(|e| e.label.as_deref() == Some(&label_str)) {
+                                        eprintln!("Error: Duplicate email label '{}'.", label_str);
+                                        return Ok(());
+                                    }
+                                }
+                            },
+                            AddType::Phone { label, .. } => {
+                                let label_str = label.clone().unwrap_or_else(|| "default".to_string());
+                                if let Some(phones) = &contact.phones {
+                                    if phones.iter().any(|p| p.label.as_deref() == Some(&label_str)) {
+                                        eprintln!("Error: Duplicate phone label '{}'.", label_str);
+                                        return Ok(());
+                                    }
+                                }
+                            },
+                            AddType::Address { label, .. } => {
+                                let label_str = label.clone().unwrap_or_else(|| "default".to_string());
+                                if let Some(address) = &contact.address {
+                                    if address.label.as_deref() == Some(&label_str) {
+                                        eprintln!("Error: Duplicate address label '{}'.", label_str);
+                                        return Ok(());
+                                    }
+                                }
+                            },
+                            AddType::Social { network, .. } => {
+                                if let Some(network) = network {
+                                    if let Some(socials) = &contact.socials {
+                                        if socials.iter().any(|s| &s.network == network) {
+                                            eprintln!("Error: Duplicate social network '{}'.", network);
+                                            return Ok(());
+                                        }
+                                    }
+                                }
+                            },
+                            AddType::Group { name_or_id } => {
+                                if let Some(groups) = &contact.groups {
+                                    if let Some(group) = find_group_best_match(&data.groups, &name_or_id) {
+                                        if groups.contains(&group.identifier) {
+                                            eprintln!("Error: Contact already in group '{}'.", group.name);
+                                            return Ok(());
+                                        }
+                                    }
+                                }
+                            },
+                            AddType::Link { other_id, .. } => {
+                                if let Some(other) = find_best_match(&data.contacts, &other_id) {
+                                    if let Some(links) = &contact.links {
+                                        if links.iter().any(|l| l.target == other.identifier) {
+                                            eprintln!("Error: Link to this contact already exists.");
+                                            return Ok(());
+                                        }
+                                    }
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
                     // Handle link case separately to avoid borrowing issues
                     if let AddType::Link { other_id, relation_type } = &add_type {
                         let other_identifier = if let Some(contact) = find_best_match(&data.contacts, other_id) {

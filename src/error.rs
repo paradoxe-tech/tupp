@@ -18,6 +18,9 @@ pub enum TuppError {
     #[error("Data validation error: {0}")]
     Validation(String),
 
+    #[error("Duplicate entry: {0}")]
+    Duplicate(String),
+
     #[error("Unknown error: {0}")]
     Other(String),
 }

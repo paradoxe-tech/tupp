@@ -351,8 +351,7 @@ fn main() -> Result<(), TuppError> {
                                 let label_str = label.clone().unwrap_or_else(|| "default".to_string());
                                 if let Some(phones) = &contact.phones {
                                     if phones.iter().any(|p| p.label.as_deref() == Some(&label_str)) {
-                                        eprintln!("Error: Duplicate phone label '{}'.", label_str);
-                                        return Ok(());
+                                        return Err(TuppError::Duplicate(format!("Phone label '{}' already exists", label_str)));
                                     }
                                 }
                             },
@@ -360,8 +359,7 @@ fn main() -> Result<(), TuppError> {
                                 let label_str = label.clone().unwrap_or_else(|| "default".to_string());
                                 if let Some(address) = &contact.address {
                                     if address.label.as_deref() == Some(&label_str) {
-                                        eprintln!("Error: Duplicate address label '{}'.", label_str);
-                                        return Ok(());
+                                        return Err(TuppError::Duplicate(format!("Address label '{}' already exists", label_str)));
                                     }
                                 }
                             },
@@ -369,8 +367,7 @@ fn main() -> Result<(), TuppError> {
                                 if let Some(network) = network {
                                     if let Some(socials) = &contact.socials {
                                         if socials.iter().any(|s| &s.network == network) {
-                                            eprintln!("Error: Duplicate social network '{}'.", network);
-                                            return Ok(());
+                                            return Err(TuppError::Duplicate(format!("Social network '{}' already exists", network)));
                                         }
                                     }
                                 }
@@ -379,8 +376,7 @@ fn main() -> Result<(), TuppError> {
                                 if let Some(groups) = &contact.groups {
                                     if let Some(group) = find_group_best_match(&data.groups, &name_or_id) {
                                         if groups.contains(&group.identifier) {
-                                            eprintln!("Error: Contact already in group '{}'.", group.name);
-                                            return Ok(());
+                                            return Err(TuppError::Duplicate(format!("Contact already in group '{}'", group.name)));
                                         }
                                     }
                                 }
@@ -389,8 +385,7 @@ fn main() -> Result<(), TuppError> {
                                 if let Some(other) = find_best_match(&data.contacts, &other_id) {
                                     if let Some(links) = &contact.links {
                                         if links.iter().any(|l| l.target == other.identifier) {
-                                            eprintln!("Error: Link to this contact already exists.");
-                                            return Ok(());
+                                            return Err(TuppError::Duplicate("Link to this contact already exists".to_string()));
                                         }
                                     }
                                 }

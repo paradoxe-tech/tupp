@@ -265,7 +265,7 @@ impl Contact {
     }
 
     pub fn add_address_interactive(&mut self, label: Option<String>, country: Option<String>, region: Option<String>, city: Option<String>, post_code: Option<String>, street: Option<String>, number: Option<String>) -> bool {
-        crate::interactions::add_address_to_contact(self, label, country, region, city, post_code, street, number)
+        crate::interactions::address::add_address_to_contact(self, label, country, region, city, post_code, street, number)
     }
 
     pub fn add_link_interactive(&mut self, other_id: Uuid, relation_type: String) {

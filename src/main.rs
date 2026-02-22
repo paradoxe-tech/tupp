@@ -328,6 +328,13 @@ fn main() -> io::Result<()> {
                     }
                 },
                 ContactCommand::Add { id, add_type } => {
+                    let contact_identifier = if let Some(contact) = find_best_match(&data.contacts, &id) {
+                        contact.identifier
+                    } else {
+                        println!("No contact found matching '{}'.", id);
+                        return Ok(());
+                    };
+                    
                     // Check for duplicate for the type being added
                     if let Some(contact) = find_best_match(&data.contacts, &id) {
                         match &add_type {

@@ -1,3 +1,5 @@
+# Tupp
+
 ## Installation
 
 ### Quick install using `tuppdate`
@@ -17,7 +19,7 @@ tuppdate 1.2.1
 
 ### Compile it yourself
 
-You must have Rust and Cargo installed on your system. 
+You must have Rust and Cargo installed on your system.
 
 ```bash
 git clone https://github.com/paradoxe-tech/tupp.git

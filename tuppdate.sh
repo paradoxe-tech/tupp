@@ -23,7 +23,8 @@ if [[ ! "$VERSION" =~ ^v ]]; then
 fi
 
 DOWNLOAD_FILENAME="${PROJECT_NAME}-${VERSION}-${OS}-${ARCH}"
-DOWNLOAD_URL="https://github.com/paradoxe-tech/${PROJECT_NAME}/releases/download/${VERSION}/${DOWNLOAD_FILENAME}"
+RELEASES_URL="https://github.com/mtripnaux/${PROJECT_NAME}/releases"
+DOWNLOAD_URL="${RELEASES_URL}/download/${VERSION}/${DOWNLOAD_FILENAME}"
 
 echo "Updating ${PROJECT_NAME} to ${VERSION} for ${OS}-${ARCH}."
 
@@ -34,7 +35,7 @@ echo "Downloading binary from GitHub Releases..."
 wget -q -O "${DOWNLOAD_PATH}" "${DOWNLOAD_URL}"
 
 if [ $? -ne 0 ]; then
-    echo "Download failed. Check if binary '${DOWNLOAD_FILENAME}' exist on https://github.com/paradoxe-tech/tupp/releases/. If not, feel free to ask for it using GitHub issues."
+    echo "Download failed. Check if binary '${DOWNLOAD_FILENAME}' exist on ${RELEASES_URL}. If not, feel free to ask for it using GitHub issues."
     rm -rf "${TEMP_DIR}"
     exit 1
 fi

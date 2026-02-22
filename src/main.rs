@@ -208,6 +208,23 @@ enum AddType {
         /// The type of relationship.
         relation_type: String,
     },
+    /// Add an address.
+    Address {
+        #[clap(short = 'l', long)]
+        label: Option<String>,
+        #[clap(short = 'c', long)]
+        country: Option<String>,
+        #[clap(short = 'r', long)]
+        region: Option<String>,
+        #[clap(short = 'i', long)]
+        city: Option<String>,
+        #[clap(short = 'p', long)]
+        post_code: Option<String>,
+        #[clap(short = 's', long)]
+        street: Option<String>,
+        #[clap(short = 'n', long)]
+        number: Option<String>,
+    },
 }
 
 fn find_best_match<'a>(contacts: &'a [Contact], text: &str) -> Option<&'a Contact> {
@@ -362,8 +379,18 @@ fn main() -> io::Result<()> {
                                 AddType::Birth { first_name, middle_name, last_name, day, month, year } => contact.add_birth_interactive(first_name, middle_name, last_name, day, month, year),
                                 AddType::Death { day, month, year } => contact.add_death_interactive(day, month, year),
                                 AddType::Gender { gender } => contact.add_gender_interactive(gender),
-                                AddType::Email { label, address } => contact.add_email_interactive(label, address),
-                                AddType::Phone { label, indicator, number } => contact.add_phone_interactive(label, indicator, number),
+                                AddType::Email { label, address } => {
+                                    let success = contact.add_email_interactive(label, address);
+                                    if !success {
+                                        return Ok(());
+                                    }
+                                },
+                                AddType::Phone { label, indicator, number } => {
+                                    let success = contact.add_phone_interactive(label, indicator, number);
+                                    if !success {
+                                        return Ok(());
+                                    }
+                                },
                                 AddType::Group { name_or_id } => {
                                     if let Some(group) = find_group_best_match(&data.groups, &name_or_id) {
                                         if contact.groups.is_none() {
@@ -377,6 +404,12 @@ fn main() -> io::Result<()> {
                                     }
                                 }
                                 AddType::Link { .. } => unreachable!(), // Already handled above
+                                AddType::Address { label, country, region, city, post_code, street, number } => {
+                                    let success = contact.add_address_interactive(label, country, region, city, post_code, street, number);
+                                    if !success {
+                                        return Ok(());
+                                    }
+                                },
                             }
                         }
                     }

@@ -40,7 +40,7 @@ pub fn add_birth_to_contact(
         .interact()
         .unwrap()
     {
-        contact.identity.birth_location = Some(crate::interactions::address::create_address_interactive());
+        contact.identity.birth_location = Some(crate::interactions::address::create_address_interactive(&[]));
     }
     // Offer to edit birth names (initialized to identity values by default)
     if Confirm::new()

@@ -179,7 +179,7 @@ impl Contact {
             .with_prompt("Do you want to enter an email?")
             .default(false)
             .interact().unwrap() {
-                Some(vec![interactions::create_email_interactive()])
+                Some(vec![interactions::create_email_interactive(&[])])
             } else { None };
 
         let phones: Option<Vec<PhoneNumber>> = if bypass {
@@ -188,7 +188,7 @@ impl Contact {
             .with_prompt("Do you want to enter a phone number?")
             .default(true)
             .interact().unwrap() {
-                Some(vec![interactions::create_phone_interactive()])
+                Some(vec![interactions::create_phone_interactive(&[])])
             } else { None };
 
         let socials: Option<Vec<Social>> = if bypass {
@@ -256,12 +256,16 @@ impl Contact {
         interactions::add_gender_to_contact(self, gender);
     }
 
-    pub fn add_email_interactive(&mut self, label: Option<String>, address: Option<String>) {
-        interactions::add_email_to_contact(self, label, address);
+    pub fn add_email_interactive(&mut self, label: Option<String>, address: Option<String>) -> bool {
+        interactions::add_email_to_contact(self, label, address)
     }
 
-    pub fn add_phone_interactive(&mut self, label: Option<String>, indicator: Option<u16>, number: Option<u32>) {
-        interactions::add_phone_to_contact(self, label, indicator, number);
+    pub fn add_phone_interactive(&mut self, label: Option<String>, indicator: Option<u16>, number: Option<u32>) -> bool {
+        interactions::add_phone_to_contact(self, label, indicator, number)
+    }
+
+    pub fn add_address_interactive(&mut self, label: Option<String>, country: Option<String>, region: Option<String>, city: Option<String>, post_code: Option<String>, street: Option<String>, number: Option<String>) -> bool {
+        crate::interactions::add_address_to_contact(self, label, country, region, city, post_code, street, number)
     }
 
     pub fn add_link_interactive(&mut self, other_id: Uuid, relation_type: String) {

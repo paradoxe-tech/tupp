@@ -29,6 +29,6 @@ pub fn add_death_to_contact(
         .interact()
         .unwrap()
     {
-        contact.identity.death_location = Some(crate::interactions::address::create_address_interactive());
+        contact.identity.death_location = Some(crate::interactions::address::create_address_interactive(&[]));
     }
 }

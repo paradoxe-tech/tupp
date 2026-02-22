@@ -1,6 +1,5 @@
 use serde::{ Deserialize, Serialize };
 use std::hash::{Hash, Hasher};
-use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, Debug, Clone, Eq, PartialEq)]

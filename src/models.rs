@@ -1,7 +1,6 @@
-use crate::unwrap::UnwrapString;
+// use crate::unwrap::UnwrapString;
 use serde::{ Deserialize, Serialize };
 use std::fmt;
-use std::collections::HashSet;
 use crate::contact::Contact;
 use crate::group::Group;
 
@@ -115,11 +114,11 @@ impl fmt::Display for Address {
         write!(
             f,
             "{} {} ; {} {}, {}",
-            self.number.unwrap_string(),
-            self.street.unwrap_string(),
-            self.post_code.unwrap_string(),
-            self.city.unwrap_string(),
-            self.country.unwrap_string()
+            self.number.clone().unwrap_or_default(),
+            self.street.clone().unwrap_or_default(),
+            self.post_code.clone().unwrap_or_default(),
+            self.city.clone().unwrap_or_default(),
+            self.country.clone().unwrap_or_default()
         )?;
 
         return Ok(());

@@ -1,4 +1,4 @@
-mod unwrap;
+mod error;
 mod models;
 mod contact;
 mod group;
@@ -10,9 +10,9 @@ use crate::storage::*;
 use clap::{Parser, Subcommand};
 use crate::contact::Contact;
 use crate::group::Group;
+use crate::error::TuppError;
 use uuid::Uuid;
-use std::fs::{self, File};
-use std::io::{self, Write};
+use std::fs;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -269,7 +269,7 @@ fn find_group_best_match<'a>(groups: &'a [Group], text: &str) -> Option<&'a Grou
     None
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), TuppError> {
     let cli = Cli::parse();
 
     let contacts_file = ensure_config_file()?;
@@ -288,7 +288,7 @@ fn main() -> io::Result<()> {
                     }
                 },
                 ContactCommand::New { title, first_name, middle_name, last_name, post_nominal, gender } => {
-                    let new_contact = Contact::new_from_input(title, first_name, middle_name, last_name, post_nominal, gender);
+                    let new_contact = interactions::create_contact_interactive(title, first_name, middle_name, last_name, post_nominal, gender)?;
                     data.contacts.push(new_contact);
 
                     save_data(&contacts_file, &data)?;
@@ -438,18 +438,18 @@ fn main() -> io::Result<()> {
                         // Handle other add types
                         if let Some(contact) = data.contacts.iter_mut().find(|c| c.identifier == contact_identifier) {
                             match add_type {
-                                AddType::Social { network, username } => contact.add_social_interactive(network, username),
-                                AddType::Birth { first_name, middle_name, last_name, day, month, year } => contact.add_birth_interactive(first_name, middle_name, last_name, day, month, year),
-                                AddType::Death { day, month, year } => contact.add_death_interactive(day, month, year),
-                                AddType::Gender { gender } => contact.add_gender_interactive(gender),
+                                AddType::Social { network, username } => interactions::add_social_to_contact(contact, network, username),
+                                AddType::Birth { first_name, middle_name, last_name, day, month, year } => interactions::add_birth_to_contact(contact, first_name, middle_name, last_name, day, month, year),
+                                AddType::Death { day, month, year } => interactions::add_death_to_contact(contact, day, month, year),
+                                AddType::Gender { gender } => interactions::add_gender_to_contact(contact, gender),
                                 AddType::Email { label, address } => {
-                                    let success = contact.add_email_interactive(label, address);
+                                    let success = interactions::add_email_to_contact(contact, label, address);
                                     if !success {
                                         return Ok(());
                                     }
                                 },
                                 AddType::Phone { label, indicator, number } => {
-                                    let success = contact.add_phone_interactive(label, indicator, number);
+                                    let success = interactions::add_phone_to_contact(contact, label, indicator, number);
                                     if !success {
                                         return Ok(());
                                     }
@@ -468,7 +468,7 @@ fn main() -> io::Result<()> {
                                 }
                                 AddType::Link { .. } => unreachable!(), // Already handled above
                                 AddType::Address { label, country, region, city, post_code, street, number } => {
-                                    let success = contact.add_address_interactive(label, country, region, city, post_code, street, number);
+                                    let success = interactions::address::add_address_to_contact(contact, label, country, region, city, post_code, street, number);
                                     if !success {
                                         return Ok(());
                                     }

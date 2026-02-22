@@ -1,4 +1,4 @@
-use dialoguer::{Input, Confirm};
+use dialoguer::Input;
 use crate::models::Social;
 
 pub fn create_social_interactive() -> Social {

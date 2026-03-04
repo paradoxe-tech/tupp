@@ -7,6 +7,7 @@ mod storage;
 mod sanitize;
 mod interactions;
 mod commands;
+mod validation;
 
 use crate::storage::*;
 use clap::Parser;

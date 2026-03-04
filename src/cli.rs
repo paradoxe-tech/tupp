@@ -32,6 +32,12 @@ pub enum Commands {
 
     /// Show the path to the data file.
     Where,
+
+    /// Validate the data file against the schema.
+    Validate {
+        /// Optional path to the file to validate. Defaults to the tupp data file.
+        path: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]

@@ -21,6 +21,12 @@ pub fn handle_general_command(
         Commands::Where => {
             println!("{}", file_path.display());
         },
+        Commands::Validate { path } => {
+            let p = path.map(PathBuf::from).unwrap_or(file_path.clone());
+            println!("Validating {}...", p.display());
+            crate::validation::validate_file(&p)?;
+            println!("Validation successful.");
+        },
         _ => {}
     }
     Ok(())

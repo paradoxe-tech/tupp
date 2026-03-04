@@ -45,7 +45,16 @@ pub fn load_data(path: &PathBuf) -> Result<TuppData, TuppError> {
     }
 }
 
+use crate::validation;
+
 pub fn save_data(path: &PathBuf, data: &TuppData) -> Result<(), TuppError> {
-    let json_data = serde_json::to_string_pretty(data).map_err(TuppError::Serialization)?;
+    // Validate data structure against schema
+    let json_value = serde_json::to_value(data).map_err(TuppError::Serialization)?;
+
+    if let Err(e) = validation::validate_json(&json_value) {
+        return Err(e);
+    }
+    
+    let json_data = serde_json::to_string_pretty(&json_value).map_err(TuppError::Serialization)?;
     fs::write(path, json_data).map_err(TuppError::Io)
 }

@@ -10,10 +10,22 @@ use crate::storage::{load_data, save_data};
 
 const TOKEN_ENV: &str = "TUPP_API_TOKEN";
 
+fn cors_headers() -> Vec<Header> {
+    vec![
+        Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap(),
+        Header::from_bytes("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap(),
+        Header::from_bytes("Access-Control-Allow-Headers", "Authorization, Content-Type").unwrap(),
+    ]
+}
+
 fn json_resp(body: String, status: u16) -> Response<std::io::Cursor<Vec<u8>>> {
-    Response::from_string(body)
+    let mut resp = Response::from_string(body)
         .with_status_code(status)
-        .with_header(Header::from_bytes("Content-Type", "application/json").unwrap())
+        .with_header(Header::from_bytes("Content-Type", "application/json").unwrap());
+    for h in cors_headers() {
+        resp.add_header(h);
+    }
+    resp
 }
 
 pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppError> {
@@ -38,6 +50,16 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
             .find(|h| h.field.equiv("Authorization"))
             .map(|h| h.value.as_str() == format!("Bearer {}", token))
             .unwrap_or(false);
+
+        // Preflight CORS — no auth required
+        if request.method() == &Method::Options {
+            let mut resp = Response::empty(204);
+            for h in cors_headers() {
+                resp.add_header(h);
+            }
+            let _ = request.respond(resp);
+            continue;
+        }
 
         if !authorized {
             let _ = request.respond(json_resp(

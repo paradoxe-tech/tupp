@@ -46,7 +46,7 @@
         "middle_name": { "type": ["string", "null"] },
         "last_name": { "type": ["string", "null"] },
         "post_nominal": { "type": ["string", "null"] },
-        "gender": { "type": ["string", "null"], "enum": ["male","female","non-binary", "Male", "Female", "Non-binary"] },
+        "gender": { "type": ["string", "null"], "enum": ["male","female","non-binary"] },
         "birth_date": { "$ref": "#/definitions/Date" },
         "birth_location": { "$ref": "#/definitions/Address" },
         "birth_first_name": { "type": ["string", "null"] },

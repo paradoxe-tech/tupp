@@ -2,7 +2,7 @@ use dialoguer::Select;
 use crate::models::Gender;
 
 pub fn create_gender_interactive() -> Gender {
-    let options = vec!["Male", "Female", "Non-binary"];
+    let options = vec!["male", "female", "non-binary"];
     
     let selection = Select::new()
         .with_prompt("Select gender")

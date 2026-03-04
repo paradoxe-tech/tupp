@@ -27,7 +27,7 @@ pub fn create_contact_interactive(
                     println!("Invalid gender '{}', falling back to interactive selection.", g_str);
                     let selection = Select::new()
                         .with_prompt("Select gender")
-                        .items(&["Male", "Female", "Non-binary"])
+                        .items(&["male", "female", "non-binary"])
                         .default(0)
                         .interact()?;
                     
@@ -45,7 +45,7 @@ pub fn create_contact_interactive(
     } else {
         let selection = Select::new()
             .with_prompt("Select gender")
-            .items(&["Male", "Female", "Non-binary"])
+            .items(&["male", "female", "non-binary"])
             .default(0)
             .interact()?;
         

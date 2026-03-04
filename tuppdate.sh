@@ -1,14 +1,19 @@
 #!/bin/bash
 
 PROJECT_NAME="tupp"
+LATEST_VERSION="v1.3.0"
 INSTALL_DIR="$HOME/.local/bin"
 ARCH=$(uname -m)
 VERSION="$1"
 
 if [ -z "$1" ]; then
     echo "ERROR: Missing version argument."
-    echo "Usage: $0 <VERSION>"
+    echo "Usage: $0 <VERSION|latest>"
     exit 1
+fi
+
+if [ "$VERSION" = "latest" ]; then
+    VERSION="$LATEST_VERSION"
 fi
 
 KERNEL_NAME=$(uname -s)

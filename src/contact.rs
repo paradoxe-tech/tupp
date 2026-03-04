@@ -17,13 +17,13 @@ pub struct Contact {
     pub links: Option<Vec<Link>>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Link {
     pub target: Uuid,
     pub relation: Relation,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub enum Relation {
     Friend,
     Child,
@@ -136,7 +136,7 @@ impl Contact {
         }
     }
 
-    fn get_reciprocal_relation(relation: &Relation) -> Relation {
+    pub fn get_reciprocal_relation(relation: &Relation) -> Relation {
         match relation {
             Relation::Friend => Relation::Friend,
             Relation::Child => Relation::Parent,

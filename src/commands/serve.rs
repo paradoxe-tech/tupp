@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tiny_http::{Header, Method, Response, Server};
 use uuid::Uuid;
 
-use crate::contact::Contact;
+use crate::contact::{Contact, Link};
 use crate::error::TuppError;
 use crate::storage::{load_data, save_data};
 
@@ -142,6 +142,26 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                             {
                                 Some(pos) => {
                                     data.contacts[pos] = contact;
+                                    // Collect links before mutable iteration
+                                    let contact_id = data.contacts[pos].identifier;
+                                    let links_to_mirror: Vec<(Uuid, _)> = data.contacts[pos]
+                                        .links
+                                        .as_ref()
+                                        .map(|ls| ls.iter().map(|l| (l.target, Contact::get_reciprocal_relation(&l.relation))).collect())
+                                        .unwrap_or_default();
+                                    // Add symmetric links to target contacts
+                                    for (target_id, reciprocal) in links_to_mirror {
+                                        if target_id == contact_id { continue; }
+                                        if let Some(target) = data.contacts.iter_mut().find(|c| c.identifier == target_id) {
+                                            let already_exists = target.links.as_ref()
+                                                .map(|ls| ls.iter().any(|l| l.target == contact_id))
+                                                .unwrap_or(false);
+                                            if !already_exists {
+                                                let new_link = Link { target: contact_id, relation: reciprocal };
+                                                target.links.get_or_insert_with(Vec::new).push(new_link);
+                                            }
+                                        }
+                                    }
                                     match save_data(file_path, &data) {
                                         Ok(_) => json_resp(
                                             serde_json::json!({"status": "updated"}).to_string(),
@@ -162,7 +182,26 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                         } else {
                             // Create new contact
                             let id = contact.identifier.to_string();
+                            let contact_id = contact.identifier;
+                            // Collect links before inserting to avoid borrow issues
+                            let links_to_mirror: Vec<(Uuid, _)> = contact
+                                .links
+                                .as_ref()
+                                .map(|ls| ls.iter().map(|l| (l.target, Contact::get_reciprocal_relation(&l.relation))).collect())
+                                .unwrap_or_default();
                             data.contacts.push(contact);
+                            // Add symmetric links to target contacts
+                            for (target_id, reciprocal) in links_to_mirror {
+                                if let Some(target) = data.contacts.iter_mut().find(|c| c.identifier == target_id) {
+                                    let already_exists = target.links.as_ref()
+                                        .map(|ls| ls.iter().any(|l| l.target == contact_id))
+                                        .unwrap_or(false);
+                                    if !already_exists {
+                                        let new_link = Link { target: contact_id, relation: reciprocal };
+                                        target.links.get_or_insert_with(Vec::new).push(new_link);
+                                    }
+                                }
+                            }
                             match save_data(file_path, &data) {
                                 Ok(_) => json_resp(serde_json::json!(id).to_string(), 201),
                                 Err(e) => json_resp(

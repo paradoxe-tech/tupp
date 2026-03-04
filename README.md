@@ -4,7 +4,7 @@
 
 ### Quick install using `tuppdate`
 
-To easily manage updates for the tupp binary, we provide a self-contained script called tuppdate. It downloads the specific release for your system and installs it in your local directory (`$HOME/.local/bin`). For example, you can run `tuppdate 1.2.2`.
+To easily manage updates for the tupp binary, we provide a self-contained script called tuppdate. It downloads the specific release for your system and installs it in your local directory (`$HOME/.local/bin`). For example, you can run `tuppdate 1.3.0`.
 
 ```bash
 curl -sL https://raw.githubusercontent.com/mtripnaux/tupp/refs/heads/main/tuppdate.sh -o tuppdate.sh
@@ -14,7 +14,7 @@ mv ./tuppdate.sh "$HOME/.local/bin/tuppdate"
 ```
 
 ```bash
-tuppdate 1.2.2
+tuppdate 1.3.0
 ```
 
 ### Compile it yourself

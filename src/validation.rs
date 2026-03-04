@@ -19,6 +19,7 @@ pub fn validate_file(path: &Path) -> Result<(), TuppError> {
     validate_json(&json)
 }
 
+#[allow(dead_code)]
 pub fn validate_data(data: &TuppData) -> Result<(), TuppError> {
     let json_value = serde_json::to_value(data).map_err(TuppError::Serialization)?;
     validate_json(&json_value)

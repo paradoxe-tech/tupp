@@ -5,7 +5,6 @@ use crate::group::Group;
 use crate::interactions;
 use crate::error::TuppError;
 use crate::storage::save_data;
-use uuid::Uuid;
 use std::path::PathBuf;
 
 pub fn handle_contact_command(

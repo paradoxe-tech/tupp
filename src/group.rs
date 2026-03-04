@@ -36,6 +36,7 @@ impl Group {
         }
     }
 
+    #[allow(dead_code)]
     pub fn contains_id_recursive(groups: &[Group], id: &Uuid) -> bool {
         for group in groups {
             if &group.identifier == id {
@@ -89,6 +90,7 @@ impl Group {
         None
     }
 
+    #[allow(dead_code)]
     pub fn find_group_by_name_recursive<'a>(groups: &'a [Group], text: &str) -> Vec<&'a Group> {
         let mut results = Vec::new();
         for group in groups {
@@ -114,6 +116,7 @@ impl Group {
         false
     }
 
+    #[allow(dead_code)]
     pub fn remove_subgroup(&mut self, child_id: &Uuid) -> Result<String, String> {
         let initial_len = self.subgroups.len();
         self.subgroups.retain(|g| &g.identifier != child_id);

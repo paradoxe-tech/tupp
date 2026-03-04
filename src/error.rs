@@ -13,6 +13,7 @@ pub enum TuppError {
     ConfigDirNotFound,
 
     #[error("Interaction cancelled by user")]
+    #[allow(dead_code)]
     Interrupted,
     
     #[error("Data validation error: {0}")]

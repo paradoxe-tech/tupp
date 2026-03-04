@@ -3,7 +3,6 @@ use crate::models::TuppData;
 use crate::group::Group;
 use crate::error::TuppError;
 use crate::storage::save_data;
-use uuid::Uuid;
 use std::path::PathBuf;
 
 pub fn handle_group_command(

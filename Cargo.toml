@@ -14,3 +14,4 @@ uuid = { version = "1", features = ["v4", "serde"] }
 dirs = "5.0"
 thiserror = "2.0.18"
 anyhow = "1.0.102"
+tiny_http = "0.12"

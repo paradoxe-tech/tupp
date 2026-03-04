@@ -27,6 +27,9 @@ fn main() -> Result<(), TuppError> {
         Commands::Group { command } => {
             commands::handle_group_command(command, &mut data, &contacts_file)?;
         },
+        Commands::Serve { port } => {
+            commands::handle_serve_command(port, &contacts_file)?;
+        },
         other_command => {
             commands::handle_general_command(other_command, &mut data, &contacts_file)?;
         },

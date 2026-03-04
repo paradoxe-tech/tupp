@@ -13,6 +13,7 @@ pub struct TuppData {
 }
 
 impl TuppData {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             contacts: Vec::new(),

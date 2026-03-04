@@ -38,6 +38,13 @@ pub enum Commands {
         /// Optional path to the file to validate. Defaults to the tupp data file.
         path: Option<String>,
     },
+
+    /// Start an HTTP API server.
+    Serve {
+        /// Port to listen on.
+        #[clap(short, long, default_value_t = 8080)]
+        port: u16,
+    },
 }
 
 #[derive(Subcommand, Debug)]

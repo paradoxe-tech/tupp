@@ -25,11 +25,12 @@ pub fn handle_contact_command(
         },
         ContactCommand::New { title, first_name, middle_name, last_name, post_nominal, gender } => {
             let new_contact = interactions::create_contact_interactive(title, first_name, middle_name, last_name, post_nominal, gender)?;
+            let new_id = new_contact.identifier;
             data.contacts.push(new_contact);
 
             save_data(file_path, data)?;
 
-            println!("Contact added successfully!");
+            println!("{}", new_id);
         },
         ContactCommand::Del { id } => {
             let id_uuid = if let Some(contact) = find_best_match(&data.contacts, &id) {

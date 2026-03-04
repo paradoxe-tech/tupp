@@ -65,14 +65,14 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
         };
 
         match route {
-            // GET /contacts → return all contacts as JSON
+            // GET /contacts → return full data as JSON
             Route::GetContacts => {
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
                         500,
                     ),
-                    Ok(data) => match serde_json::to_string(&data.contacts) {
+                    Ok(data) => match serde_json::to_string(&data) {
                         Ok(json) => json_resp(json, 200),
                         Err(e) => json_resp(
                             serde_json::json!({"error": e.to_string()}).to_string(),

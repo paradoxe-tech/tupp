@@ -65,7 +65,6 @@ pub enum Relation {
     Friend,
     Child,
     Parent,
-    Colleague,
     Partner,
     Spouse,
     Ex
@@ -150,7 +149,7 @@ impl Contact {
             Ok(())
         } else {
             Err(format!(
-                "Invalid relation type: {}. Valid types are: friend, child, parent, colleague, partner, spouse",
+                "Invalid relation type: {}. Valid types are: friend, child, parent, partner, spouse",
                 relation_type
             ))
         }
@@ -161,7 +160,6 @@ impl Contact {
             "friend" => Some(Relation::Friend),
             "child" => Some(Relation::Child),
             "parent" => Some(Relation::Parent),
-            "colleague" => Some(Relation::Colleague),
             "partner" => Some(Relation::Partner),
             "spouse" => Some(Relation::Spouse),
             "ex" => Some(Relation::Ex),
@@ -174,7 +172,6 @@ impl Contact {
             Relation::Friend => Relation::Friend,
             Relation::Child => Relation::Parent,
             Relation::Parent => Relation::Child,
-            Relation::Colleague => Relation::Colleague,
             Relation::Partner => Relation::Partner,
             Relation::Spouse => Relation::Spouse,
             Relation::Ex => Relation::Ex,
@@ -347,7 +344,6 @@ impl fmt::Display for Relation {
             Relation::Friend => write!(f, "Friend"),
             Relation::Child => write!(f, "Child"),
             Relation::Parent => write!(f, "Parent"),
-            Relation::Colleague => write!(f, "Colleague"),
             Relation::Partner => write!(f, "Partner"),
             Relation::Spouse => write!(f, "Spouse"),
             Relation::Ex => write!(f, "Ex-partner"),

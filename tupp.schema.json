@@ -125,7 +125,7 @@
       "type": "object",
       "properties": {
         "target": { "type": "string", "format": "uuid" },
-        "relation": { "type": "string", "enum": ["Friend","Child","Parent","Colleague","Partner","Spouse","Ex"] }
+        "relation": { "type": "string", "enum": ["Friend","Child","Parent","Partner","Spouse","Ex"] }
       },
       "required": ["target","relation"],
       "additionalProperties": false

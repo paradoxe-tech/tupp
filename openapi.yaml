@@ -484,7 +484,7 @@ components:
           format: uuid
         relation:
           type: string
-          enum: [Friend, Child, Parent, Colleague, Partner, Spouse, Ex]
+          enum: [Friend, Child, Parent, Partner, Spouse, Ex]
 
     Group:
       type: object

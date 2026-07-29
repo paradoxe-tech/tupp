@@ -9,12 +9,49 @@ use crate::models::*;
 pub struct Contact {
     pub identifier: Uuid,
     pub identity: Identity,
-    pub address: Option<Address>,
+    pub addresses: Option<Vec<Address>>,
     pub emails: Option<Vec<Email>>,
     pub phones: Option<Vec<PhoneNumber>>,
     pub socials: Option<Vec<Social>>,
     pub groups: Option<HashSet<Uuid>>,
+    pub positions: Option<Vec<Position>>,
     pub links: Option<Vec<Link>>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Eq, PartialEq)]
+pub struct Position {
+    pub institution: Uuid,
+    pub title: String,
+    pub start: Option<Date>,
+    pub tenure: Tenure,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Eq, PartialEq)]
+pub enum Tenure {
+    Present,
+    Ended(Date),
+}
+
+impl fmt::Display for Tenure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Tenure::Present => write!(f, "Present"),
+            Tenure::Ended(date) => write!(f, "{}", date),
+        }
+    }
+}
+
+impl fmt::Display for Position {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: {} ({} - {})",
+            self.title,
+            self.institution,
+            self.start.as_ref().map(|d| d.to_string()).unwrap_or_default(),
+            self.tenure
+        )
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -28,8 +65,6 @@ pub enum Relation {
     Friend,
     Child,
     Parent,
-    Boss,
-    Employee,
     Colleague,
     Partner,
     Spouse,
@@ -115,7 +150,7 @@ impl Contact {
             Ok(())
         } else {
             Err(format!(
-                "Invalid relation type: {}. Valid types are: friend, child, parent, boss, employee, colleague, partner, spouse",
+                "Invalid relation type: {}. Valid types are: friend, child, parent, colleague, partner, spouse",
                 relation_type
             ))
         }
@@ -126,8 +161,6 @@ impl Contact {
             "friend" => Some(Relation::Friend),
             "child" => Some(Relation::Child),
             "parent" => Some(Relation::Parent),
-            "boss" => Some(Relation::Boss),
-            "employee" => Some(Relation::Employee),
             "colleague" => Some(Relation::Colleague),
             "partner" => Some(Relation::Partner),
             "spouse" => Some(Relation::Spouse),
@@ -141,8 +174,6 @@ impl Contact {
             Relation::Friend => Relation::Friend,
             Relation::Child => Relation::Parent,
             Relation::Parent => Relation::Child,
-            Relation::Boss => Relation::Employee,
-            Relation::Employee => Relation::Boss,
             Relation::Colleague => Relation::Colleague,
             Relation::Partner => Relation::Partner,
             Relation::Spouse => Relation::Spouse,
@@ -237,12 +268,15 @@ impl fmt::Display for Contact {
             }
         }
 
-        if let Some(address) = &self.address {
-            writeln!(
-                f,
-                "\tAddress: {}",
-                address
-            )?;
+        if let Some(addresses) = &self.addresses {
+            writeln!(f, "\tAddresses:")?;
+            for address in addresses {
+                writeln!(
+                    f,
+                    "\t  {}",
+                    address
+                )?;
+            }
         }
 
         if let Some(emails) = &self.emails {
@@ -296,6 +330,13 @@ impl fmt::Display for Contact {
             }
         }
 
+        if let Some(positions) = &self.positions {
+            writeln!(f, "\tPositions:")?;
+            for position in positions {
+                writeln!(f, "\t  {}", position)?;
+            }
+        }
+
         Ok(())
     }
 }
@@ -306,8 +347,6 @@ impl fmt::Display for Relation {
             Relation::Friend => write!(f, "Friend"),
             Relation::Child => write!(f, "Child"),
             Relation::Parent => write!(f, "Parent"),
-            Relation::Boss => write!(f, "Boss"),
-            Relation::Employee => write!(f, "Employee"),
             Relation::Colleague => write!(f, "Colleague"),
             Relation::Partner => write!(f, "Partner"),
             Relation::Spouse => write!(f, "Spouse"),

@@ -165,9 +165,10 @@ pub fn create_contact_interactive(
         },
         emails,
         phones,
-        address: None,
+        addresses: None,
         socials,
         groups: None,
+        positions: None,
         links: None,
     })
 }

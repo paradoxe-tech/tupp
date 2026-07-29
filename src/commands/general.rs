@@ -15,7 +15,7 @@ pub fn handle_general_command(
             save_data(&PathBuf::from(path), data)?
         },
         Commands::Init => {
-            fs::write(file_path, "{\"contacts\": [], \"groups\": []}")
+            fs::write(file_path, "{\"contacts\": [], \"groups\": [], \"institutions\": []}")
                 .expect("Failed to write empty contact file");
         },
         Commands::Where => {

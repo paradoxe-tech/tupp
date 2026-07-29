@@ -3,6 +3,7 @@ mod error;
 mod models;
 mod contact;
 mod group;
+mod institution;
 mod storage;
 mod sanitize;
 mod interactions;
@@ -26,6 +27,9 @@ fn main() -> Result<(), TuppError> {
         },
         Commands::Group { command } => {
             commands::handle_group_command(command, &mut data, &contacts_file)?;
+        },
+        Commands::Institution { command } => {
+            commands::handle_institution_command(command, &mut data, &contacts_file)?;
         },
         Commands::Serve { port } => {
             commands::handle_serve_command(port, &contacts_file)?;

@@ -12,6 +12,10 @@
     "groups": {
       "type": "array",
       "items": { "$ref": "#/definitions/Group" }
+    },
+    "institutions": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Institution" }
     }
   },
 
@@ -26,7 +30,7 @@
           "description": "UUID identifier for the contact"
         },
         "identity": { "$ref": "#/definitions/Identity" },
-        "address": { "$ref": "#/definitions/Address" },
+        "addresses": { "type": "array", "items": { "$ref": "#/definitions/Address" } },
         "emails": { "type": "array", "items": { "$ref": "#/definitions/Email" } },
         "phones": { "type": "array", "items": { "$ref": "#/definitions/PhoneNumber" } },
         "socials": { "type": "array", "items": { "$ref": "#/definitions/Social" } },
@@ -34,6 +38,7 @@
           "type": "array",
           "items": { "type": "string", "format": "uuid" }
         },
+        "positions": { "type": "array", "items": { "$ref": "#/definitions/Position" } },
         "links": { "type": "array", "items": { "$ref": "#/definitions/Link" } }
       },
       "additionalProperties": false
@@ -120,7 +125,7 @@
       "type": "object",
       "properties": {
         "target": { "type": "string", "format": "uuid" },
-        "relation": { "type": "string", "enum": ["Friend","Child","Parent","Boss","Employee","Colleague","Partner","Spouse","Ex"] }
+        "relation": { "type": "string", "enum": ["Friend","Child","Parent","Colleague","Partner","Spouse","Ex"] }
       },
       "required": ["target","relation"],
       "additionalProperties": false
@@ -137,6 +142,42 @@
         }
       },
       "required": ["identifier", "name"],
+      "additionalProperties": false
+    },
+
+    "Institution": {
+      "type": "object",
+      "properties": {
+        "identifier": { "type": "string", "format": "uuid" },
+        "name": { "type": "string" }
+      },
+      "required": ["identifier", "name"],
+      "additionalProperties": false
+    },
+
+    "Tenure": {
+      "oneOf": [
+        { "const": "Present" },
+        {
+          "type": "object",
+          "properties": {
+            "Ended": { "$ref": "#/definitions/Date" }
+          },
+          "required": ["Ended"],
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "Position": {
+      "type": "object",
+      "properties": {
+        "institution": { "type": "string", "format": "uuid" },
+        "title": { "type": "string" },
+        "start": { "$ref": "#/definitions/Date" },
+        "tenure": { "$ref": "#/definitions/Tenure" }
+      },
+      "required": ["institution", "title", "tenure"],
       "additionalProperties": false
     }
   },

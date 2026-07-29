@@ -2,6 +2,7 @@ use crate::cli::{ContactCommand, AddType};
 use crate::models::TuppData;
 use crate::contact::Contact;
 use crate::group::Group;
+use crate::institution::Institution;
 use crate::interactions;
 use crate::error::TuppError;
 use crate::storage::save_data;
@@ -92,8 +93,8 @@ pub fn handle_contact_command(
                     },
                     AddType::Address { label, .. } => {
                         let label_str = label.clone().unwrap_or_else(|| "default".to_string());
-                        if let Some(address) = &contact.address {
-                            if address.label.as_deref() == Some(&label_str) {
+                        if let Some(addresses) = &contact.addresses {
+                            if addresses.iter().any(|a| a.label.as_deref() == Some(&label_str)) {
                                 return Err(TuppError::Duplicate(format!("Address label '{}' already exists", label_str)));
                             }
                         }
@@ -207,6 +208,16 @@ pub fn handle_contact_command(
                                 return Ok(());
                             }
                         },
+                        AddType::Position { institution, title, start_day, start_month, start_year, end_day, end_month, end_year } => {
+                            if let Some(inst) = find_institution_best_match(&data.institutions, &institution) {
+                                let institution_id = inst.identifier;
+                                interactions::add_position_to_contact(contact, institution_id, title, start_year, start_month, start_day, end_year, end_month, end_day);
+                                println!("Position added.");
+                            } else {
+                                println!("No institution found matching '{}'.", institution);
+                                return Ok(());
+                            }
+                        },
                     }
                 }
             }
@@ -224,5 +235,9 @@ fn find_best_match<'a>(contacts: &'a [Contact], text: &str) -> Option<&'a Contac
 
 fn find_group_best_match<'a>(groups: &'a [Group], text: &str) -> Option<&'a Group> {
     Group::find_best_match(groups, text)
+}
+
+fn find_institution_best_match<'a>(institutions: &'a [Institution], text: &str) -> Option<&'a Institution> {
+    Institution::find_best_match(institutions, text)
 }
 

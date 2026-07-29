@@ -6,6 +6,8 @@ use uuid::Uuid;
 
 use crate::contact::{Contact, Link};
 use crate::error::TuppError;
+use crate::group::Group;
+use crate::institution::Institution;
 use crate::storage::{load_data, save_data};
 
 const TOKEN_ENV: &str = "TUPP_API_TOKEN";
@@ -13,7 +15,7 @@ const TOKEN_ENV: &str = "TUPP_API_TOKEN";
 fn cors_headers() -> Vec<Header> {
     vec![
         Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap(),
-        Header::from_bytes("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap(),
+        Header::from_bytes("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS").unwrap(),
         Header::from_bytes("Access-Control-Allow-Headers", "Authorization, Content-Type").unwrap(),
     ]
 }
@@ -70,19 +72,41 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
         }
 
         // Resolve route before consuming request for body reading
-        #[derive(PartialEq)]
         enum Route {
             GetContacts,
             PostContacts,
+            DeleteContact(Uuid),
+            GetGroups,
+            PostGroups,
+            DeleteGroup(Uuid),
+            GetInstitutions,
+            PostInstitutions,
+            DeleteInstitution(Uuid),
             NotFound,
         }
 
-        let route = match (
-            request.method(),
-            request.url().split('?').next().unwrap_or("").trim_end_matches('/'),
-        ) {
-            (Method::Get, "/contacts") => Route::GetContacts,
-            (Method::Post, "/contacts") => Route::PostContacts,
+        let path = request.url().split('?').next().unwrap_or("").trim_end_matches('/').to_string();
+        let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+
+        let route = match (request.method(), segments.as_slice()) {
+            (Method::Get, ["contacts"]) => Route::GetContacts,
+            (Method::Post, ["contacts"]) => Route::PostContacts,
+            (Method::Delete, ["contacts", id]) => match Uuid::parse_str(id) {
+                Ok(uuid) => Route::DeleteContact(uuid),
+                Err(_) => Route::NotFound,
+            },
+            (Method::Get, ["groups"]) => Route::GetGroups,
+            (Method::Post, ["groups"]) => Route::PostGroups,
+            (Method::Delete, ["groups", id]) => match Uuid::parse_str(id) {
+                Ok(uuid) => Route::DeleteGroup(uuid),
+                Err(_) => Route::NotFound,
+            },
+            (Method::Get, ["institutions"]) => Route::GetInstitutions,
+            (Method::Post, ["institutions"]) => Route::PostInstitutions,
+            (Method::Delete, ["institutions", id]) => match Uuid::parse_str(id) {
+                Ok(uuid) => Route::DeleteInstitution(uuid),
+                Err(_) => Route::NotFound,
+            },
             _ => Route::NotFound,
         };
 
@@ -235,6 +259,257 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                     }
                 };
 
+                let _ = request.respond(resp);
+            }
+
+            Route::DeleteContact(id) => {
+                let resp = match load_data(file_path) {
+                    Err(e) => json_resp(
+                        serde_json::json!({"error": e.to_string()}).to_string(),
+                        500,
+                    ),
+                    Ok(mut data) => {
+                        let initial_len = data.contacts.len();
+                        data.contacts.retain(|c| c.identifier != id);
+                        if data.contacts.len() == initial_len {
+                            json_resp(
+                                serde_json::json!({"error": "Contact not found"}).to_string(),
+                                404,
+                            )
+                        } else {
+                            match save_data(file_path, &data) {
+                                Ok(_) => json_resp(
+                                    serde_json::json!({"status": "deleted"}).to_string(),
+                                    200,
+                                ),
+                                Err(e) => json_resp(
+                                    serde_json::json!({"error": e.to_string()}).to_string(),
+                                    500,
+                                ),
+                            }
+                        }
+                    }
+                };
+                let _ = request.respond(resp);
+            }
+
+            Route::GetGroups => {
+                let resp = match load_data(file_path) {
+                    Err(e) => json_resp(
+                        serde_json::json!({"error": e.to_string()}).to_string(),
+                        500,
+                    ),
+                    Ok(data) => match serde_json::to_string(&data.groups) {
+                        Ok(json) => json_resp(json, 200),
+                        Err(e) => json_resp(
+                            serde_json::json!({"error": e.to_string()}).to_string(),
+                            500,
+                        ),
+                    },
+                };
+                let _ = request.respond(resp);
+            }
+
+            Route::PostGroups => {
+                let mut body = String::new();
+                if let Err(e) = request.as_reader().read_to_string(&mut body) {
+                    let _ = request.respond(json_resp(
+                        serde_json::json!({"error": e.to_string()}).to_string(),
+                        400,
+                    ));
+                    continue;
+                }
+
+                #[derive(serde::Deserialize)]
+                struct NewGroup {
+                    name: String,
+                    parent: Option<Uuid>,
+                }
+
+                let new_group_req: NewGroup = match serde_json::from_str(&body) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = request.respond(json_resp(
+                            serde_json::json!({"error": format!("Invalid group: {}", e)})
+                                .to_string(),
+                            400,
+                        ));
+                        continue;
+                    }
+                };
+
+                let resp = match load_data(file_path) {
+                    Err(e) => json_resp(
+                        serde_json::json!({"error": e.to_string()}).to_string(),
+                        500,
+                    ),
+                    Ok(mut data) => {
+                        let new_group = Group::new(new_group_req.name);
+                        let id = new_group.identifier;
+                        let added = match new_group_req.parent {
+                            Some(parent_id) => Group::find_parent_and_add_recursive(
+                                &mut data.groups,
+                                &parent_id,
+                                new_group,
+                            ),
+                            None => {
+                                data.groups.push(new_group);
+                                true
+                            }
+                        };
+
+                        if !added {
+                            json_resp(
+                                serde_json::json!({"error": "Parent group not found"})
+                                    .to_string(),
+                                404,
+                            )
+                        } else {
+                            match save_data(file_path, &data) {
+                                Ok(_) => json_resp(serde_json::json!(id).to_string(), 201),
+                                Err(e) => json_resp(
+                                    serde_json::json!({"error": e.to_string()}).to_string(),
+                                    500,
+                                ),
+                            }
+                        }
+                    }
+                };
+                let _ = request.respond(resp);
+            }
+
+            Route::DeleteGroup(id) => {
+                let resp = match load_data(file_path) {
+                    Err(e) => json_resp(
+                        serde_json::json!({"error": e.to_string()}).to_string(),
+                        500,
+                    ),
+                    Ok(mut data) => {
+                        if Group::delete_group_recursive(&mut data.groups, &id) {
+                            for contact in &mut data.contacts {
+                                if let Some(ref mut groups) = contact.groups {
+                                    groups.remove(&id);
+                                }
+                            }
+                            match save_data(file_path, &data) {
+                                Ok(_) => json_resp(
+                                    serde_json::json!({"status": "deleted"}).to_string(),
+                                    200,
+                                ),
+                                Err(e) => json_resp(
+                                    serde_json::json!({"error": e.to_string()}).to_string(),
+                                    500,
+                                ),
+                            }
+                        } else {
+                            json_resp(
+                                serde_json::json!({"error": "Group not found"}).to_string(),
+                                404,
+                            )
+                        }
+                    }
+                };
+                let _ = request.respond(resp);
+            }
+
+            Route::GetInstitutions => {
+                let resp = match load_data(file_path) {
+                    Err(e) => json_resp(
+                        serde_json::json!({"error": e.to_string()}).to_string(),
+                        500,
+                    ),
+                    Ok(data) => match serde_json::to_string(&data.institutions) {
+                        Ok(json) => json_resp(json, 200),
+                        Err(e) => json_resp(
+                            serde_json::json!({"error": e.to_string()}).to_string(),
+                            500,
+                        ),
+                    },
+                };
+                let _ = request.respond(resp);
+            }
+
+            Route::PostInstitutions => {
+                let mut body = String::new();
+                if let Err(e) = request.as_reader().read_to_string(&mut body) {
+                    let _ = request.respond(json_resp(
+                        serde_json::json!({"error": e.to_string()}).to_string(),
+                        400,
+                    ));
+                    continue;
+                }
+
+                #[derive(serde::Deserialize)]
+                struct NewInstitution {
+                    name: String,
+                }
+
+                let new_institution_req: NewInstitution = match serde_json::from_str(&body) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = request.respond(json_resp(
+                            serde_json::json!({"error": format!("Invalid institution: {}", e)})
+                                .to_string(),
+                            400,
+                        ));
+                        continue;
+                    }
+                };
+
+                let resp = match load_data(file_path) {
+                    Err(e) => json_resp(
+                        serde_json::json!({"error": e.to_string()}).to_string(),
+                        500,
+                    ),
+                    Ok(mut data) => {
+                        let new_institution = Institution::new(new_institution_req.name);
+                        let id = new_institution.identifier;
+                        data.institutions.push(new_institution);
+                        match save_data(file_path, &data) {
+                            Ok(_) => json_resp(serde_json::json!(id).to_string(), 201),
+                            Err(e) => json_resp(
+                                serde_json::json!({"error": e.to_string()}).to_string(),
+                                500,
+                            ),
+                        }
+                    }
+                };
+                let _ = request.respond(resp);
+            }
+
+            Route::DeleteInstitution(id) => {
+                let resp = match load_data(file_path) {
+                    Err(e) => json_resp(
+                        serde_json::json!({"error": e.to_string()}).to_string(),
+                        500,
+                    ),
+                    Ok(mut data) => {
+                        let initial_len = data.institutions.len();
+                        data.institutions.retain(|i| i.identifier != id);
+                        if data.institutions.len() == initial_len {
+                            json_resp(
+                                serde_json::json!({"error": "Institution not found"}).to_string(),
+                                404,
+                            )
+                        } else {
+                            for contact in &mut data.contacts {
+                                if let Some(ref mut positions) = contact.positions {
+                                    positions.retain(|p| p.institution != id);
+                                }
+                            }
+                            match save_data(file_path, &data) {
+                                Ok(_) => json_resp(
+                                    serde_json::json!({"status": "deleted"}).to_string(),
+                                    200,
+                                ),
+                                Err(e) => json_resp(
+                                    serde_json::json!({"error": e.to_string()}).to_string(),
+                                    500,
+                                ),
+                            }
+                        }
+                    }
+                };
                 let _ = request.respond(resp);
             }
 

@@ -3,6 +3,7 @@ use serde::{ Deserialize, Serialize };
 use std::fmt;
 use crate::contact::Contact;
 use crate::group::Group;
+use crate::institution::Institution;
 
 /* GLOBAL DATA STRUCTURE */
 
@@ -10,6 +11,8 @@ use crate::group::Group;
 pub struct TuppData {
     pub contacts: Vec<Contact>,
     pub groups: Vec<Group>,
+    #[serde(default)]
+    pub institutions: Vec<Institution>,
 }
 
 impl TuppData {
@@ -18,6 +21,7 @@ impl TuppData {
         Self {
             contacts: Vec::new(),
             groups: Vec::new(),
+            institutions: Vec::new(),
         }
     }
 }
@@ -32,13 +36,6 @@ pub enum Gender {
     Female,
     #[serde(rename = "non-binary")]
     NonBinary,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct Company {
-    pub name: Option<String>,
-    pub position: Option<String>,
-    pub address: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -144,7 +141,7 @@ impl Default for Address {
 
 /* DATE DEF, DISPLAY & DEFAULT */
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone, Eq, PartialEq)]
 pub struct Date {
     pub year: Option<i32>,
     pub month: Option<u8>,

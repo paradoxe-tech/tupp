@@ -22,7 +22,7 @@ pub fn ensure_config_file() -> Result<PathBuf, TuppError> {
     let contacts_file = config_dir.join("contacts.json");
     if !contacts_file.exists() {
         let mut file = File::create(&contacts_file).map_err(TuppError::Io)?;
-        writeln!(file, "{{ \"contacts\": [], \"groups\": [] }}").map_err(TuppError::Io)?;
+        writeln!(file, "{{ \"contacts\": [], \"groups\": [], \"institutions\": [] }}").map_err(TuppError::Io)?;
     }
 
     Ok(contacts_file)
@@ -38,6 +38,7 @@ pub fn load_data(path: &PathBuf) -> Result<TuppData, TuppError> {
                 Ok(contacts) => Ok(TuppData {
                     contacts,
                     groups: Vec::new(),
+                    institutions: Vec::new(),
                 }),
                 Err(e) => Err(TuppError::Serialization(e)),
             }

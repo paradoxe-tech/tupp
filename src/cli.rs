@@ -21,6 +21,12 @@ pub enum Commands {
         command: GroupCommand,
     },
 
+    /// Manage institutions.
+    Institution {
+        #[clap(subcommand)]
+        command: InstitutionCommand,
+    },
+
     /// Export contacts to a specified file.
     Export {
         /// The path to the export file.
@@ -144,6 +150,36 @@ pub enum GroupCommand {
 }
 
 #[derive(Subcommand, Debug)]
+pub enum InstitutionCommand {
+    /// List all institutions.
+    List {
+        /// Show institution IDs in the output.
+        #[clap(short = 'i', long)]
+        show_ids: bool,
+    },
+    /// Create a new institution.
+    New {
+        /// The name of the institution.
+        name: String,
+    },
+    /// Delete an institution by its ID.
+    Del {
+        /// The ID of the institution to delete.
+        id: String,
+    },
+    /// Find an institution by searching for text in its name.
+    Find {
+        /// The text to search for in institution names.
+        text: String,
+    },
+    /// Show detailed information for a specific institution.
+    Show {
+        /// The ID of the institution to display.
+        id: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 pub enum AddType {
     /// Add a social media account.
     Social {
@@ -203,6 +239,33 @@ pub enum AddType {
     Group {
         /// The name or ID of the group.
         name_or_id: String,
+    },
+    /// Add a position (role held at an institution, over a time interval).
+    Position {
+        /// The name or ID of the institution.
+        #[clap(short = 'n', long)]
+        institution: String,
+        /// The title of the position.
+        #[clap(short = 't', long)]
+        title: String,
+        /// Day the position started.
+        #[clap(long)]
+        start_day: Option<u8>,
+        /// Month the position started.
+        #[clap(long)]
+        start_month: Option<u8>,
+        /// Year the position started.
+        #[clap(long)]
+        start_year: Option<i32>,
+        /// Day the position ended. Omit if still held.
+        #[clap(long)]
+        end_day: Option<u8>,
+        /// Month the position ended. Omit if still held.
+        #[clap(long)]
+        end_month: Option<u8>,
+        /// Year the position ended. Omit if still held.
+        #[clap(long)]
+        end_year: Option<i32>,
     },
     /// Link to another contact.
     Link {

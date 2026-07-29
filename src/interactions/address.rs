@@ -183,10 +183,9 @@ pub fn add_address_to_contact(
     number: Option<String>,
 ) -> bool {
     let existing_labels: Vec<String> = contact
-        .address
+        .addresses
         .as_ref()
-        .and_then(|a| a.label.clone())
-        .map(|l| vec![l])
+        .map(|v| v.iter().filter_map(|a| a.label.clone()).collect())
         .unwrap_or_default();
 
     let label_str = label.clone().unwrap_or_else(|| "default".to_string());
@@ -205,6 +204,11 @@ pub fn add_address_to_contact(
         number,
         &existing_labels,
     );
-    contact.address = Some(new_address);
+
+    if let Some(ref mut address_vec) = contact.addresses {
+        address_vec.push(new_address);
+    } else {
+        contact.addresses = Some(vec![new_address]);
+    }
     true
 }

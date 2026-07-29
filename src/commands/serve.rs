@@ -442,6 +442,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                 #[derive(serde::Deserialize)]
                 struct NewInstitution {
                     name: String,
+                    parent: Option<Uuid>,
                 }
 
                 let new_institution_req: NewInstitution = match serde_json::from_str(&body) {
@@ -464,13 +465,32 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                     Ok(mut data) => {
                         let new_institution = Institution::new(new_institution_req.name);
                         let id = new_institution.identifier;
-                        data.institutions.push(new_institution);
-                        match save_data(file_path, &data) {
-                            Ok(_) => json_resp(serde_json::json!(id).to_string(), 201),
-                            Err(e) => json_resp(
-                                serde_json::json!({"error": e.to_string()}).to_string(),
-                                500,
+                        let added = match new_institution_req.parent {
+                            Some(parent_id) => Institution::find_parent_and_add_recursive(
+                                &mut data.institutions,
+                                &parent_id,
+                                new_institution,
                             ),
+                            None => {
+                                data.institutions.push(new_institution);
+                                true
+                            }
+                        };
+
+                        if !added {
+                            json_resp(
+                                serde_json::json!({"error": "Parent institution not found"})
+                                    .to_string(),
+                                404,
+                            )
+                        } else {
+                            match save_data(file_path, &data) {
+                                Ok(_) => json_resp(serde_json::json!(id).to_string(), 201),
+                                Err(e) => json_resp(
+                                    serde_json::json!({"error": e.to_string()}).to_string(),
+                                    500,
+                                ),
+                            }
                         }
                     }
                 };
@@ -484,9 +504,12 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                         500,
                     ),
                     Ok(mut data) => {
-                        let initial_len = data.institutions.len();
-                        data.institutions.retain(|i| i.identifier != id);
-                        if data.institutions.len() == initial_len {
+                        let mut removed_ids = Vec::new();
+                        if let Some(institution) = Institution::find_institution_by_id_recursive(&data.institutions, &id) {
+                            Institution::collect_ids_recursive(std::slice::from_ref(institution), &mut removed_ids);
+                        }
+
+                        if !Institution::delete_institution_recursive(&mut data.institutions, &id) {
                             json_resp(
                                 serde_json::json!({"error": "Institution not found"}).to_string(),
                                 404,
@@ -494,7 +517,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                         } else {
                             for contact in &mut data.contacts {
                                 if let Some(ref mut positions) = contact.positions {
-                                    positions.retain(|p| p.institution != id);
+                                    positions.retain(|p| !removed_ids.contains(&p.institution));
                                 }
                             }
                             match save_data(file_path, &data) {

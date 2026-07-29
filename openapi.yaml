@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: tupp API
-  version: 1.3.1
+  version: 1.4.0
   description: HTTP API exposed by `tupp serve`.
 
 servers:
@@ -158,7 +158,7 @@ paths:
       operationId: getInstitutions
       responses:
         "200":
-          description: Institutions
+          description: Institutions, with nested subinstitutions
           content:
             application/json:
               schema:
@@ -171,6 +171,7 @@ paths:
           $ref: "#/components/responses/ServerError"
     post:
       summary: Create an institution
+      description: Omit `parent` to create a top-level institution, or provide a parent institution ID (at any depth) to create a sub-institution.
       operationId: postInstitution
       requestBody:
         required: true
@@ -182,6 +183,10 @@ paths:
               properties:
                 name:
                   type: string
+                parent:
+                  type: string
+                  format: uuid
+                  nullable: true
       responses:
         "201":
           description: Institution created
@@ -194,13 +199,19 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Parent institution not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
           $ref: "#/components/responses/ServerError"
 
   /institutions/{id}:
     delete:
       summary: Delete an institution by ID
-      description: Also removes any contact position referencing this institution.
+      description: Deletes the institution and all its subinstitutions, and removes any contact position referencing any of them.
       operationId: deleteInstitution
       parameters:
         - $ref: "#/components/parameters/Id"
@@ -498,6 +509,10 @@ components:
           format: uuid
         name:
           type: string
+        subinstitutions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Institution"
 
     Tenure:
       description: 'Either the literal string "Present", or `{"Ended": <Date>}`.'

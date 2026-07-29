@@ -16,18 +16,31 @@ pub fn handle_institution_command(
                 println!("No institutions found.");
             } else {
                 for institution in &data.institutions {
-                    if show_ids {
-                        println!("{}\t{}", institution.identifier, institution.name);
-                    } else {
-                        println!("{}", institution.name);
-                    }
+                    institution.display_recursive(0, show_ids);
                 }
             }
         }
-        InstitutionCommand::New { name } => {
+        InstitutionCommand::New { name, parent } => {
             let new_institution = Institution::new(name);
-            println!("Institution created with ID: {}", new_institution.identifier);
-            data.institutions.push(new_institution);
+
+            if let Some(parent_str) = parent {
+                let parent_id = find_best_match(&data.institutions, &parent_str)
+                    .map(|i| i.identifier);
+
+                if let Some(id) = parent_id {
+                    if Institution::find_parent_and_add_recursive(&mut data.institutions, &id, new_institution.clone()) {
+                        println!("Sub-institution created with ID: {}", new_institution.identifier);
+                    } else {
+                        println!("Failed to add sub-institution.");
+                    }
+                } else {
+                    println!("Parent institution matching '{}' not found.", parent_str);
+                    return Ok(());
+                }
+            } else {
+                println!("Institution created with ID: {}", new_institution.identifier);
+                data.institutions.push(new_institution);
+            }
             save_data(file_path, data)?;
         }
         InstitutionCommand::Del { id } => {
@@ -38,13 +51,15 @@ pub fn handle_institution_command(
                 return Ok(());
             };
 
-            let initial_len = data.institutions.len();
-            data.institutions.retain(|i| i.identifier != id_uuid);
+            let mut removed_ids = Vec::new();
+            if let Some(institution) = Institution::find_institution_by_id_recursive(&data.institutions, &id_uuid) {
+                Institution::collect_ids_recursive(std::slice::from_ref(institution), &mut removed_ids);
+            }
 
-            if data.institutions.len() < initial_len {
+            if Institution::delete_institution_recursive(&mut data.institutions, &id_uuid) {
                 for contact in &mut data.contacts {
                     if let Some(ref mut positions) = contact.positions {
-                        positions.retain(|p| p.institution != id_uuid);
+                        positions.retain(|p| !removed_ids.contains(&p.institution));
                     }
                 }
                 save_data(file_path, data)?;

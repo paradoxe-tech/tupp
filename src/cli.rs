@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[clap(name = "tupp", version = "1.3.1", author = "mtripnaux & gaiadrd")]
+#[clap(name = "tupp", version = "1.4.0", author = "mtripnaux & gaiadrd")]
 pub struct Cli {
     #[clap(subcommand)]
     pub command: Commands,
@@ -161,6 +161,9 @@ pub enum InstitutionCommand {
     New {
         /// The name of the institution.
         name: String,
+        /// The ID of the parent institution (optional).
+        #[clap(short, long)]
+        parent: Option<String>,
     },
     /// Delete an institution by its ID.
     Del {

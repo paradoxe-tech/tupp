@@ -47,28 +47,73 @@ pub fn normalize_tupp_phone(country_code: u16, number: u32) -> String {
     format!("{}{}", country_code, number)
 }
 
+/// Google usually resolves whatever the user typed into a proper E.164
+/// `canonicalForm` — prefer that over the raw `value` since it's normally
+/// already unambiguous (`+<country code><number>`) regardless of locale.
+fn google_phone_raw(p: &super::people::GPhone) -> Option<&str> {
+    p.canonical_form
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .or(p.value.as_deref())
+}
+
+/// ITU-T country calling codes. The numbering plan is prefix-free (no valid
+/// code is itself a prefix of another valid code), so trying lengths 1, 2,
+/// then 3 against this table unambiguously finds the split point of any
+/// `+`-prefixed E.164 number, regardless of which country it's from.
+const CALLING_CODES: &[&str] = &[
+    "1", "7", "20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", "43", "44", "45",
+    "46", "47", "48", "49", "51", "52", "53", "54", "55", "56", "57", "58", "60", "61", "62", "63",
+    "64", "65", "66", "81", "82", "84", "86", "90", "91", "92", "93", "94", "95", "98", "211",
+    "212", "213", "216", "218", "220", "221", "222", "223", "224", "225", "226", "227", "228",
+    "229", "230", "231", "232", "233", "234", "235", "236", "237", "238", "239", "240", "241",
+    "242", "243", "244", "245", "246", "247", "248", "249", "250", "251", "252", "253", "254",
+    "255", "256", "257", "258", "260", "261", "262", "263", "264", "265", "266", "267", "268",
+    "269", "290", "291", "297", "298", "299", "350", "351", "352", "353", "354", "355", "356",
+    "357", "358", "359", "370", "371", "372", "373", "374", "375", "376", "377", "378", "379",
+    "380", "381", "382", "383", "385", "386", "387", "389", "420", "421", "423", "500", "501",
+    "502", "503", "504", "505", "506", "507", "508", "509", "590", "591", "592", "593", "594",
+    "595", "596", "597", "598", "599", "670", "672", "673", "674", "675", "676", "677", "678",
+    "679", "680", "681", "682", "683", "685", "686", "687", "688", "689", "690", "691", "692",
+    "850", "852", "853", "855", "856", "880", "886", "960", "961", "962", "963", "964", "965",
+    "966", "967", "968", "970", "971", "972", "973", "974", "975", "976", "977", "992", "993",
+    "994", "995", "996", "998",
+];
+
+fn calling_code_len(digits: &str) -> Option<usize> {
+    [1usize, 2, 3].into_iter().find(|&len| {
+        digits.len() >= len && CALLING_CODES.contains(&&digits[..len])
+    })
+}
+
 /// Splits a free-text Google phone number into (country_code, number) so it
-/// can be stored as a tupp `PhoneNumber`. Only numbers in the configured
-/// default region, or already in `+<code>` form matching it, can be split
-/// unambiguously without a full calling-code table — anything else returns
-/// `None` and is left for the user to add manually.
+/// can be stored as a tupp `PhoneNumber`. A `+`-prefixed number is split
+/// using the ITU calling-code table above, so it works for any country. A
+/// number with no `+` is assumed to be in national format for the
+/// configured default region (there's no way to know the country otherwise).
 pub fn split_phone_for_tupp(raw: &str, default_region_prefix: Option<u16>) -> Option<(u16, u32)> {
-    let prefix = default_region_prefix?;
     let digits: String = raw
         .chars()
         .filter(|c| c.is_ascii_digit() || *c == '+')
         .collect();
 
-    let national = if let Some(rest) = digits.strip_prefix('+') {
-        rest.strip_prefix(&prefix.to_string())?
+    if let Some(rest) = digits.strip_prefix('+') {
+        let len = calling_code_len(rest)?;
+        let (code_str, national) = rest.split_at(len);
+        if national.is_empty() {
+            return None;
+        }
+        let code: u16 = code_str.parse().ok()?;
+        let number: u32 = national.parse().ok()?;
+        Some((code, number))
     } else {
-        digits.strip_prefix('0').unwrap_or(&digits)
-    };
-
-    if national.is_empty() {
-        return None;
+        let prefix = default_region_prefix?;
+        let national = digits.strip_prefix('0').unwrap_or(&digits);
+        if national.is_empty() {
+            return None;
+        }
+        national.parse::<u32>().ok().map(|number| (prefix, number))
     }
-    national.parse::<u32>().ok().map(|number| (prefix, number))
 }
 
 /* ---------------------------------------------------------------------- */
@@ -137,7 +182,7 @@ pub fn find_exact_match(
     let google_phones: HashSet<String> = google
         .phone_numbers
         .iter()
-        .filter_map(|p| p.value.as_deref())
+        .filter_map(google_phone_raw)
         .filter_map(|raw| normalize_phone(raw, default_region_prefix))
         .collect();
 
@@ -328,36 +373,84 @@ impl ContactDiff {
     }
 }
 
+/// Merges one birth-date component (year, month or day) between the two
+/// sides. A component missing on exactly one side is filled from the other;
+/// present-but-different is a genuine contradiction (recorded, left as-is on
+/// both sides); missing on both stays missing. Returns the resulting value
+/// for (tupp, google) — a component that's unchanged from its original value
+/// on a given side means that side doesn't need an update for this field.
+fn merge_date_component<T: Copy + PartialEq + std::fmt::Display>(
+    t: Option<T>,
+    g: Option<T>,
+    field_label: &str,
+    conflicts: &mut Vec<String>,
+) -> (Option<T>, Option<T>) {
+    match (t, g) {
+        (Some(tv), Some(gv)) => {
+            if tv != gv {
+                conflicts.push(format!(
+                    "birth {}: tupp has {}, google has {} — left untouched",
+                    field_label, tv, gv
+                ));
+            }
+            (t, g)
+        }
+        (Some(_), None) => (t, t),
+        (None, Some(_)) => (g, g),
+        (None, None) => (None, None),
+    }
+}
+
 pub fn diff(google: &GoogleContact, tupp: &Contact, default_region_prefix: Option<u16>) -> ContactDiff {
     let mut tupp_updates = Vec::new();
     let mut google_updates = Vec::new();
     let mut conflicts = Vec::new();
 
-    let t_date = tupp.identity.birth_date.as_ref().map(|d| (d.year, d.month, d.day));
-    let g_date = google
-        .birthdays
-        .first()
-        .and_then(|b| b.date.as_ref())
-        .map(|d| (d.year, d.month, d.day));
-    match (t_date, g_date) {
-        (Some(tv), Some(gv)) if tv != gv => conflicts.push(format!(
-            "birth date: tupp has {:?}, google has {:?} — left untouched",
-            tv, gv
-        )),
-        (Some(tv), None) => google_updates.push(GoogleUpdate::Birthday(GDate {
-            year: tv.0,
-            month: tv.1,
-            day: tv.2,
-        })),
-        (None, Some(gv)) => tupp_updates.push(TuppUpdate::BirthDate(Date {
-            year: gv.0,
-            month: gv.1,
-            day: gv.2,
-            hour: None,
-            minute: None,
-            second: None,
-        })),
-        _ => {}
+    let t_birth = tupp.identity.birth_date.as_ref();
+    let g_birth = google.birthdays.first().and_then(|b| b.date.as_ref());
+
+    let (t_year, g_year) = merge_date_component(
+        t_birth.and_then(|d| d.year),
+        g_birth.and_then(|d| d.year),
+        "year",
+        &mut conflicts,
+    );
+    let (t_month, g_month) = merge_date_component(
+        t_birth.and_then(|d| d.month),
+        g_birth.and_then(|d| d.month),
+        "month",
+        &mut conflicts,
+    );
+    let (t_day, g_day) = merge_date_component(
+        t_birth.and_then(|d| d.day),
+        g_birth.and_then(|d| d.day),
+        "day",
+        &mut conflicts,
+    );
+
+    let tupp_changed = t_year != t_birth.and_then(|d| d.year)
+        || t_month != t_birth.and_then(|d| d.month)
+        || t_day != t_birth.and_then(|d| d.day);
+    let google_changed = g_year != g_birth.and_then(|d| d.year)
+        || g_month != g_birth.and_then(|d| d.month)
+        || g_day != g_birth.and_then(|d| d.day);
+
+    if tupp_changed {
+        tupp_updates.push(TuppUpdate::BirthDate(Date {
+            year: t_year,
+            month: t_month,
+            day: t_day,
+            hour: t_birth.and_then(|d| d.hour),
+            minute: t_birth.and_then(|d| d.minute),
+            second: t_birth.and_then(|d| d.second),
+        }));
+    }
+    if google_changed {
+        google_updates.push(GoogleUpdate::Birthday(GDate {
+            year: g_year,
+            month: g_month,
+            day: g_day,
+        }));
     }
 
     // Emails: plain union, no contradiction concept for list fields.
@@ -400,7 +493,7 @@ pub fn diff(google: &GoogleContact, tupp: &Contact, default_region_prefix: Optio
         .map(|p| normalize_tupp_phone(p.country_code, p.number))
         .collect();
     for gp in &google.phone_numbers {
-        if let Some(raw) = &gp.value {
+        if let Some(raw) = google_phone_raw(gp) {
             if let Some(norm) = normalize_phone(raw, default_region_prefix) {
                 if !tupp_phones.contains(&norm) {
                     if let Some((country_code, number)) = split_phone_for_tupp(raw, default_region_prefix) {
@@ -417,7 +510,7 @@ pub fn diff(google: &GoogleContact, tupp: &Contact, default_region_prefix: Optio
     let google_phones: HashSet<String> = google
         .phone_numbers
         .iter()
-        .filter_map(|p| p.value.as_deref())
+        .filter_map(google_phone_raw)
         .filter_map(|raw| normalize_phone(raw, default_region_prefix))
         .collect();
     for tp in tupp.phones.iter().flatten() {
@@ -470,8 +563,18 @@ mod tests {
     }
 
     #[test]
-    fn split_phone_for_tupp_foreign_number_unresolved() {
-        assert_eq!(split_phone_for_tupp("+14155552671", Some(33)), None);
+    fn split_phone_for_tupp_foreign_number_resolved_via_calling_code_table() {
+        // US/Canada (1-digit code), regardless of the configured default region.
+        assert_eq!(split_phone_for_tupp("+14155552671", Some(33)), Some((1, 4155552671)));
+        // China (2-digit code).
+        assert_eq!(split_phone_for_tupp("+861380013800", Some(33)), Some((86, 1380013800)));
+        // Portugal (3-digit code).
+        assert_eq!(split_phone_for_tupp("+351912345678", Some(33)), Some((351, 912345678)));
+    }
+
+    #[test]
+    fn split_phone_for_tupp_intl_number_without_default_region_still_resolves() {
+        assert_eq!(split_phone_for_tupp("+14155552671", None), Some((1, 4155552671)));
     }
 
     #[test]
@@ -484,5 +587,79 @@ mod tests {
             guess_social_from_url("https://example.com/janedoe"),
             None
         );
+    }
+
+    #[test]
+    fn merge_date_component_fills_missing_side() {
+        let mut conflicts = Vec::new();
+        assert_eq!(merge_date_component(Some(2005), None, "year", &mut conflicts), (Some(2005), Some(2005)));
+        assert!(conflicts.is_empty());
+    }
+
+    #[test]
+    fn merge_date_component_leaves_contradiction_untouched() {
+        let mut conflicts = Vec::new();
+        assert_eq!(merge_date_component(Some(9u8), Some(10u8), "month", &mut conflicts), (Some(9), Some(10)));
+        assert_eq!(conflicts.len(), 1);
+    }
+
+    #[test]
+    fn diff_fills_missing_google_year_without_conflict_when_month_day_match() {
+        use crate::contact::Contact;
+        use crate::models::{Date, Identity};
+        use crate::google::people::{GBirthday, GDate, GoogleContact};
+
+        let tupp = Contact {
+            identifier: uuid::Uuid::new_v4(),
+            identity: Identity {
+                title: None,
+                last_name: None,
+                middle_name: None,
+                first_name: None,
+                post_nominal: None,
+                gender: None,
+                birth_date: Some(Date {
+                    year: Some(2005),
+                    month: Some(9),
+                    day: Some(9),
+                    hour: None,
+                    minute: None,
+                    second: None,
+                }),
+                birth_location: None,
+                birth_first_name: None,
+                birth_middle_name: None,
+                birth_last_name: None,
+                is_alive: true,
+                death_date: None,
+                death_location: None,
+            },
+            addresses: None,
+            emails: None,
+            phones: None,
+            socials: None,
+            groups: None,
+            positions: None,
+            links: None,
+        };
+
+        let google = GoogleContact {
+            birthdays: vec![GBirthday {
+                date: Some(GDate {
+                    year: None,
+                    month: Some(9),
+                    day: Some(9),
+                }),
+            }],
+            ..Default::default()
+        };
+
+        let d = diff(&google, &tupp, None);
+        assert!(d.conflicts.is_empty(), "unexpected conflicts: {:?}", d.conflicts);
+        assert_eq!(d.google_updates.len(), 1);
+        assert!(matches!(
+            &d.google_updates[0],
+            GoogleUpdate::Birthday(GDate { year: Some(2005), month: Some(9), day: Some(9) })
+        ));
     }
 }

@@ -15,3 +15,5 @@ dirs = "5.0"
 thiserror = "2.0.18"
 anyhow = "1.0.102"
 tiny_http = "0.12"
+ureq = { version = "2", features = ["json"] }
+strsim = "0.11"

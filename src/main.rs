@@ -9,6 +9,7 @@ mod sanitize;
 mod interactions;
 mod commands;
 mod validation;
+mod google;
 
 use crate::storage::*;
 use clap::Parser;
@@ -33,6 +34,9 @@ fn main() -> Result<(), TuppError> {
         },
         Commands::Serve { port } => {
             commands::handle_serve_command(port, &contacts_file)?;
+        },
+        Commands::Sync { command } => {
+            commands::handle_sync_command(command, &mut data, &contacts_file)?;
         },
         other_command => {
             commands::handle_general_command(other_command, &mut data, &contacts_file)?;

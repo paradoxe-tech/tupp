@@ -51,6 +51,26 @@ pub enum Commands {
         #[clap(short, long, default_value_t = 8080)]
         port: u16,
     },
+
+    /// Synchronize with Google Contacts.
+    Sync {
+        #[clap(subcommand)]
+        command: SyncCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SyncCommand {
+    /// Configure Google API credentials and authenticate via OAuth.
+    Setup,
+    /// Link tupp contacts with Google Contacts using verifiable data (email/phone).
+    Link {
+        /// After exact linking, interactively propose fuzzy matches for the rest.
+        #[clap(long)]
+        heuristic: bool,
+    },
+    /// Push non-contradictory data between linked tupp and Google contacts.
+    Update,
 }
 
 #[derive(Subcommand, Debug)]

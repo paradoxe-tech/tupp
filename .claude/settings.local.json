@@ -9,7 +9,11 @@
       "Read(//home/matheo/.config/tupp/**)",
       "Bash(python3 -m json.tool)",
       "Bash(python3 /tmp/claude-1000/-home-matheo-projects-perso-tupp/39cf3d8c-a474-4750-b697-61129d9be6e1/scratchpad/migrate_relations.py)",
-      "Bash(cargo run *)"
+      "Bash(cargo run *)",
+      "Bash(./target/release/tupp sync *)",
+      "Bash(pkill -f \"target/release/tupp sync setup\")",
+      "Bash(git -C /home/matheo/projects/tupp status --short)",
+      "Bash(git check-ignore *)"
     ],
     "additionalDirectories": [
       "/tmp"

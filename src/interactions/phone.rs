@@ -47,7 +47,7 @@ pub fn create_phone_interactive(existing_labels: &[String]) -> PhoneNumber {
         .interact_text()
         .unwrap();
 
-    let number: u32 = Input::new()
+    let number: u64 = Input::new()
         .with_prompt("Phone Number")
         .interact_text()
         .unwrap();
@@ -63,7 +63,7 @@ pub fn add_phone_to_contact(
     contact: &mut crate::contact::Contact,
     label: Option<String>,
     indicator: Option<u16>,
-    number: Option<u32>,
+    number: Option<u64>,
 ) -> bool {
     let existing_labels: Vec<String> = contact
         .phones

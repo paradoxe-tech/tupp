@@ -256,7 +256,7 @@ pub enum AddType {
         #[clap(short = 'i', long)]
         indicator: Option<u16>,
         #[clap(short = 'n', long)]
-        number: Option<u32>,
+        number: Option<u64>,
     },
     /// Add contact to a group.
     Group {

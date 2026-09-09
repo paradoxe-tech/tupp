@@ -60,7 +60,7 @@ impl fmt::Display for Email {
 pub struct PhoneNumber {
     pub label: Option<String>,
     pub country_code: u16,
-    pub number: u32,
+    pub number: u64,
 }
 
 impl fmt::Display for PhoneNumber {

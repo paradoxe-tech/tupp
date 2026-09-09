@@ -43,7 +43,7 @@ pub fn normalize_phone(raw: &str, default_region_prefix: Option<u16>) -> Option<
     }
 }
 
-pub fn normalize_tupp_phone(country_code: u16, number: u32) -> String {
+pub fn normalize_tupp_phone(country_code: u16, number: u64) -> String {
     format!("{}{}", country_code, number)
 }
 
@@ -91,7 +91,7 @@ fn calling_code_len(digits: &str) -> Option<usize> {
 /// using the ITU calling-code table above, so it works for any country. A
 /// number with no `+` is assumed to be in national format for the
 /// configured default region (there's no way to know the country otherwise).
-pub fn split_phone_for_tupp(raw: &str, default_region_prefix: Option<u16>) -> Option<(u16, u32)> {
+pub fn split_phone_for_tupp(raw: &str, default_region_prefix: Option<u16>) -> Option<(u16, u64)> {
     let digits: String = raw
         .chars()
         .filter(|c| c.is_ascii_digit() || *c == '+')
@@ -104,7 +104,7 @@ pub fn split_phone_for_tupp(raw: &str, default_region_prefix: Option<u16>) -> Op
             return None;
         }
         let code: u16 = code_str.parse().ok()?;
-        let number: u32 = national.parse().ok()?;
+        let number: u64 = national.parse().ok()?;
         Some((code, number))
     } else {
         let prefix = default_region_prefix?;
@@ -112,7 +112,7 @@ pub fn split_phone_for_tupp(raw: &str, default_region_prefix: Option<u16>) -> Op
         if national.is_empty() {
             return None;
         }
-        national.parse::<u32>().ok().map(|number| (prefix, number))
+        national.parse::<u64>().ok().map(|number| (prefix, number))
     }
 }
 
@@ -578,6 +578,14 @@ mod tests {
     }
 
     #[test]
+    fn split_phone_for_tupp_national_number_larger_than_u32() {
+        // National part alone (9399056800) overflows u32 — this used to make
+        // the whole number silently unresolvable for any NANP number whose
+        // local part is >= 5,000,000,000.
+        assert_eq!(split_phone_for_tupp("+19399056800", None), Some((1, 9399056800)));
+    }
+
+    #[test]
     fn guess_social_from_url_recognizes_known_domains() {
         assert_eq!(
             guess_social_from_url("https://www.linkedin.com/in/janedoe"),
@@ -603,13 +611,11 @@ mod tests {
         assert_eq!(conflicts.len(), 1);
     }
 
-    #[test]
-    fn diff_fills_missing_google_year_without_conflict_when_month_day_match() {
+    fn contact_with_birthdate(year: Option<i32>, month: Option<u8>, day: Option<u8>) -> crate::contact::Contact {
         use crate::contact::Contact;
         use crate::models::{Date, Identity};
-        use crate::google::people::{GBirthday, GDate, GoogleContact};
 
-        let tupp = Contact {
+        Contact {
             identifier: uuid::Uuid::new_v4(),
             identity: Identity {
                 title: None,
@@ -618,14 +624,11 @@ mod tests {
                 first_name: None,
                 post_nominal: None,
                 gender: None,
-                birth_date: Some(Date {
-                    year: Some(2005),
-                    month: Some(9),
-                    day: Some(9),
-                    hour: None,
-                    minute: None,
-                    second: None,
-                }),
+                birth_date: if year.is_none() && month.is_none() && day.is_none() {
+                    None
+                } else {
+                    Some(Date { year, month, day, hour: None, minute: None, second: None })
+                },
                 birth_location: None,
                 birth_first_name: None,
                 birth_middle_name: None,
@@ -641,18 +644,24 @@ mod tests {
             groups: None,
             positions: None,
             links: None,
-        };
+        }
+    }
 
-        let google = GoogleContact {
+    fn google_with_birthdate(year: Option<i32>, month: Option<u8>, day: Option<u8>) -> GoogleContact {
+        use crate::google::people::GBirthday;
+
+        GoogleContact {
             birthdays: vec![GBirthday {
-                date: Some(GDate {
-                    year: None,
-                    month: Some(9),
-                    day: Some(9),
-                }),
+                date: Some(GDate { year, month, day }),
             }],
             ..Default::default()
-        };
+        }
+    }
+
+    #[test]
+    fn diff_fills_missing_google_year_without_conflict_when_month_day_match() {
+        let tupp = contact_with_birthdate(Some(2005), Some(9), Some(9));
+        let google = google_with_birthdate(None, Some(9), Some(9));
 
         let d = diff(&google, &tupp, None);
         assert!(d.conflicts.is_empty(), "unexpected conflicts: {:?}", d.conflicts);
@@ -660,6 +669,76 @@ mod tests {
         assert!(matches!(
             &d.google_updates[0],
             GoogleUpdate::Birthday(GDate { year: Some(2005), month: Some(9), day: Some(9) })
+        ));
+    }
+
+    #[test]
+    fn diff_fills_missing_google_month_without_conflict_when_year_day_match() {
+        let tupp = contact_with_birthdate(Some(2005), Some(9), Some(9));
+        let google = google_with_birthdate(Some(2005), None, Some(9));
+
+        let d = diff(&google, &tupp, None);
+        assert!(d.conflicts.is_empty(), "unexpected conflicts: {:?}", d.conflicts);
+        assert!(matches!(
+            &d.google_updates[0],
+            GoogleUpdate::Birthday(GDate { year: Some(2005), month: Some(9), day: Some(9) })
+        ));
+    }
+
+    #[test]
+    fn diff_fills_missing_google_day_without_conflict_when_year_month_match() {
+        let tupp = contact_with_birthdate(Some(2005), Some(9), Some(9));
+        let google = google_with_birthdate(Some(2005), Some(9), None);
+
+        let d = diff(&google, &tupp, None);
+        assert!(d.conflicts.is_empty(), "unexpected conflicts: {:?}", d.conflicts);
+        assert!(matches!(
+            &d.google_updates[0],
+            GoogleUpdate::Birthday(GDate { year: Some(2005), month: Some(9), day: Some(9) })
+        ));
+    }
+
+    #[test]
+    fn diff_fills_missing_tupp_month_without_conflict_when_year_day_match() {
+        let tupp = contact_with_birthdate(Some(2005), None, Some(9));
+        let google = google_with_birthdate(Some(2005), Some(9), Some(9));
+
+        let d = diff(&google, &tupp, None);
+        assert!(d.conflicts.is_empty(), "unexpected conflicts: {:?}", d.conflicts);
+        assert_eq!(d.tupp_updates.len(), 1);
+        assert!(matches!(
+            &d.tupp_updates[0],
+            TuppUpdate::BirthDate(crate::models::Date { year: Some(2005), month: Some(9), day: Some(9), .. })
+        ));
+    }
+
+    #[test]
+    fn diff_fills_missing_tupp_day_without_conflict_when_year_month_match() {
+        let tupp = contact_with_birthdate(Some(2005), Some(9), None);
+        let google = google_with_birthdate(Some(2005), Some(9), Some(9));
+
+        let d = diff(&google, &tupp, None);
+        assert!(d.conflicts.is_empty(), "unexpected conflicts: {:?}", d.conflicts);
+        assert_eq!(d.tupp_updates.len(), 1);
+        assert!(matches!(
+            &d.tupp_updates[0],
+            TuppUpdate::BirthDate(crate::models::Date { year: Some(2005), month: Some(9), day: Some(9), .. })
+        ));
+    }
+
+    #[test]
+    fn diff_reports_conflict_when_day_differs_but_still_fills_missing_year() {
+        let tupp = contact_with_birthdate(None, Some(9), Some(9));
+        let google = google_with_birthdate(Some(2005), Some(9), Some(10));
+
+        let d = diff(&google, &tupp, None);
+        assert_eq!(d.conflicts.len(), 1);
+        assert!(d.conflicts[0].contains("day"));
+        // Year still gets filled into tupp even though day is contradictory.
+        assert_eq!(d.tupp_updates.len(), 1);
+        assert!(matches!(
+            &d.tupp_updates[0],
+            TuppUpdate::BirthDate(crate::models::Date { year: Some(2005), month: Some(9), day: Some(9), .. })
         ));
     }
 }

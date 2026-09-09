@@ -1,7 +1,9 @@
 use std::env;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
-use tiny_http::{Header, Method, Response, Server};
+use tiny_http::{Header, Method, Request, Response, Server};
 use uuid::Uuid;
 
 use crate::contact::{Contact, Link};
@@ -11,6 +13,7 @@ use crate::institution::Institution;
 use crate::storage::{load_data, save_data};
 
 const TOKEN_ENV: &str = "TUPP_API_TOKEN";
+const WORKER_THREADS: usize = 8;
 
 fn cors_headers() -> Vec<Header> {
     vec![
@@ -39,39 +42,69 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
     })?;
 
     let addr = format!("0.0.0.0:{}", port);
-    let server = Server::http(&addr)
-        .map_err(|e| TuppError::Other(format!("Failed to start server: {}", e)))?;
+    let server = Arc::new(
+        Server::http(&addr).map_err(|e| TuppError::Other(format!("Failed to start server: {}", e)))?,
+    );
 
     eprintln!("tupp listening on http://{}", addr);
 
-    for mut request in server.incoming_requests() {
-        // --- Bearer auth ---
-        let authorized = request
-            .headers()
-            .iter()
-            .find(|h| h.field.equiv("Authorization"))
-            .map(|h| h.value.as_str() == format!("Bearer {}", token))
-            .unwrap_or(false);
+    // Guards access to the data file so concurrent requests can't corrupt it
+    // with interleaved read-modify-write cycles, while still letting workers
+    // handle slow clients (accepting/reading/writing the response) in parallel.
+    let data_lock = Arc::new(Mutex::new(()));
 
-        // Preflight CORS — no auth required
-        if request.method() == &Method::Options {
-            let mut resp = Response::empty(204);
-            for h in cors_headers() {
-                resp.add_header(h);
+    let mut workers = Vec::with_capacity(WORKER_THREADS);
+    for _ in 0..WORKER_THREADS {
+        let server = Arc::clone(&server);
+        let data_lock = Arc::clone(&data_lock);
+        let file_path = file_path.clone();
+        let token = token.clone();
+        workers.push(thread::spawn(move || loop {
+            match server.recv() {
+                Ok(request) => handle_request(request, &file_path, &token, &data_lock),
+                Err(e) => {
+                    eprintln!("tupp: error receiving request: {}", e);
+                    break;
+                }
             }
-            let _ = request.respond(resp);
-            continue;
-        }
+        }));
+    }
 
-        if !authorized {
-            let _ = request.respond(json_resp(
-                serde_json::json!({"error": "Unauthorized"}).to_string(),
-                401,
-            ));
-            continue;
-        }
+    for worker in workers {
+        let _ = worker.join();
+    }
 
-        // Resolve route before consuming request for body reading
+    Ok(())
+}
+
+fn handle_request(mut request: Request, file_path: &PathBuf, token: &str, data_lock: &Mutex<()>) {
+    // --- Bearer auth ---
+    let authorized = request
+        .headers()
+        .iter()
+        .find(|h| h.field.equiv("Authorization"))
+        .map(|h| h.value.as_str() == format!("Bearer {}", token))
+        .unwrap_or(false);
+
+    // Preflight CORS — no auth required
+    if request.method() == &Method::Options {
+        let mut resp = Response::empty(204);
+        for h in cors_headers() {
+            resp.add_header(h);
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    if !authorized {
+        let _ = request.respond(json_resp(
+            serde_json::json!({"error": "Unauthorized"}).to_string(),
+            401,
+        ));
+        return;
+    }
+
+    // Resolve route before consuming request for body reading
         enum Route {
             GetContacts,
             PostContacts,
@@ -113,6 +146,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
         match route {
             // GET /contacts → return full data as JSON
             Route::GetContacts => {
+                let _guard = data_lock.lock().unwrap();
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
@@ -138,7 +172,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                         serde_json::json!({"error": e.to_string()}).to_string(),
                         400,
                     ));
-                    continue;
+                    return;
                 }
 
                 // Parse JSON
@@ -150,7 +184,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                                 .to_string(),
                             400,
                         ));
-                        continue;
+                        return;
                     }
                 };
 
@@ -169,10 +203,11 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                                 .to_string(),
                             400,
                         ));
-                        continue;
+                        return;
                     }
                 };
 
+                let _guard = data_lock.lock().unwrap();
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
@@ -263,6 +298,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
             }
 
             Route::DeleteContact(id) => {
+                let _guard = data_lock.lock().unwrap();
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
@@ -294,6 +330,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
             }
 
             Route::GetGroups => {
+                let _guard = data_lock.lock().unwrap();
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
@@ -317,7 +354,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                         serde_json::json!({"error": e.to_string()}).to_string(),
                         400,
                     ));
-                    continue;
+                    return;
                 }
 
                 #[derive(serde::Deserialize)]
@@ -334,10 +371,11 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                                 .to_string(),
                             400,
                         ));
-                        continue;
+                        return;
                     }
                 };
 
+                let _guard = data_lock.lock().unwrap();
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
@@ -379,6 +417,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
             }
 
             Route::DeleteGroup(id) => {
+                let _guard = data_lock.lock().unwrap();
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
@@ -413,6 +452,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
             }
 
             Route::GetInstitutions => {
+                let _guard = data_lock.lock().unwrap();
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
@@ -436,7 +476,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                         serde_json::json!({"error": e.to_string()}).to_string(),
                         400,
                     ));
-                    continue;
+                    return;
                 }
 
                 #[derive(serde::Deserialize)]
@@ -453,10 +493,11 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                                 .to_string(),
                             400,
                         ));
-                        continue;
+                        return;
                     }
                 };
 
+                let _guard = data_lock.lock().unwrap();
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
@@ -498,6 +539,7 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
             }
 
             Route::DeleteInstitution(id) => {
+                let _guard = data_lock.lock().unwrap();
                 let resp = match load_data(file_path) {
                     Err(e) => json_resp(
                         serde_json::json!({"error": e.to_string()}).to_string(),
@@ -543,7 +585,4 @@ pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppEr
                 ));
             }
         }
-    }
-
-    Ok(())
 }

@@ -7,6 +7,7 @@ pub mod death;
 pub mod gender;
 pub mod date;
 pub mod position;
+pub mod nickname;
 
 pub use social::*;
 pub use email::*;
@@ -15,5 +16,6 @@ pub use birth::*;
 pub use death::*;
 pub use gender::*;
 pub use position::*;
+pub use nickname::*;
 pub mod create;
 pub use create::*;

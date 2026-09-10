@@ -637,6 +637,7 @@ mod tests {
                 death_date: None,
                 death_location: None,
             },
+            nicknames: None,
             addresses: None,
             emails: None,
             phones: None,

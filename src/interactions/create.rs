@@ -163,6 +163,7 @@ pub fn create_contact_interactive(
             death_date: None,
             death_location: None,
         },
+        nicknames: None,
         emails,
         phones,
         addresses: None,

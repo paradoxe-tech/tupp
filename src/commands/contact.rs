@@ -75,6 +75,13 @@ pub fn handle_contact_command(
             // Check for duplicate for the type being added
             if let Some(contact) = find_best_match(&data.contacts, &id) {
                 match &add_type {
+                    AddType::Nickname { nickname } => {
+                        if let (Some(nickname), Some(nicknames)) = (nickname, &contact.nicknames) {
+                            if nicknames.contains(nickname) {
+                                return Err(TuppError::Duplicate(format!("Nickname '{}' already exists", nickname)));
+                            }
+                        }
+                    },
                     AddType::Email { label, .. } => {
                         let label_str = label.clone().unwrap_or_else(|| "default".to_string());
                         if let Some(emails) = &contact.emails {
@@ -168,6 +175,12 @@ pub fn handle_contact_command(
                 // Handle other add types
                 if let Some(contact) = data.contacts.iter_mut().find(|c| c.identifier == contact_identifier) {
                     match add_type {
+                        AddType::Nickname { nickname } => {
+                            let success = interactions::add_nickname_to_contact(contact, nickname);
+                            if !success {
+                                return Ok(());
+                            }
+                        },
                         AddType::Social { label, network, username } => {
                              let success = interactions::add_social_to_contact(contact, label, network, username);
                             if !success {

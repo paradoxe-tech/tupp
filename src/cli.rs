@@ -204,6 +204,11 @@ pub enum InstitutionCommand {
 
 #[derive(Subcommand, Debug)]
 pub enum AddType {
+    /// Add a nickname.
+    Nickname {
+        /// The nickname to add.
+        nickname: Option<String>,
+    },
     /// Add a social media account.
     Social {
         #[clap(short = 'l', long)]

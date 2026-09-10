@@ -9,6 +9,7 @@ use crate::models::*;
 pub struct Contact {
     pub identifier: Uuid,
     pub identity: Identity,
+    pub nicknames: Option<Vec<String>>,
     pub addresses: Option<Vec<Address>>,
     pub emails: Option<Vec<Email>>,
     pub phones: Option<Vec<PhoneNumber>>,
@@ -188,6 +189,10 @@ impl fmt::Display for Contact {
             self.identity.first_name.clone().unwrap_or_default(),
             self.identity.last_name.clone().unwrap_or_default()
         )?;
+
+        if let Some(nicknames) = &self.nicknames {
+            writeln!(f, "\tNicknames: {}", nicknames.join(", "))?;
+        }
 
         if let Some(gender) = &self.identity.gender {
             writeln!(

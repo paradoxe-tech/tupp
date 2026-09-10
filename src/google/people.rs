@@ -262,11 +262,24 @@ pub fn patch_contact(
     Ok(())
 }
 
+// Google's `googleusercontent.com` photo URLs carry a size directive after
+// the last `=` (e.g. `...=s100-c`), and the People API defaults to a small
+// ~100px thumbnail. Swapping it for a bigger one is the standard way to get
+// a higher-resolution copy without any extra API call.
+const PHOTO_SIZE_PX: u32 = 512;
+
+fn upsized_photo_url(url: &str) -> String {
+    let base = url.rsplit_once('=').map(|(base, _)| base).unwrap_or(url);
+    format!("{}=s{}-c", base, PHOTO_SIZE_PX)
+}
+
 /// Downloads a contact photo. The URL comes straight from the People API
 /// response and is already a directly-fetchable `googleusercontent.com`
 /// link — no auth header needed, same as an `<img src>` would use.
 pub fn download_photo(url: &str) -> Result<(Vec<u8>, String), TuppError> {
-    let response = ureq::get(url).call().map_err(describe_ureq_error)?;
+    let response = ureq::get(&upsized_photo_url(url))
+        .call()
+        .map_err(describe_ureq_error)?;
     let content_type = response.content_type().to_string();
 
     let mut bytes = Vec::new();
@@ -277,4 +290,25 @@ pub fn download_photo(url: &str) -> Result<(Vec<u8>, String), TuppError> {
         .map_err(TuppError::Io)?;
 
     Ok((bytes, content_type))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn upsized_photo_url_replaces_existing_size_directive() {
+        assert_eq!(
+            upsized_photo_url("https://lh3.googleusercontent.com/a-/ABC123=s100-c"),
+            "https://lh3.googleusercontent.com/a-/ABC123=s512-c"
+        );
+    }
+
+    #[test]
+    fn upsized_photo_url_appends_directive_when_absent() {
+        assert_eq!(
+            upsized_photo_url("https://lh3.googleusercontent.com/a-/ABC123"),
+            "https://lh3.googleusercontent.com/a-/ABC123=s512-c"
+        );
+    }
 }

@@ -33,6 +33,16 @@ fn json_resp(body: String, status: u16) -> Response<std::io::Cursor<Vec<u8>>> {
     resp
 }
 
+fn binary_resp(body: Vec<u8>, content_type: &str, status: u16) -> Response<std::io::Cursor<Vec<u8>>> {
+    let mut resp = Response::from_data(body)
+        .with_status_code(status)
+        .with_header(Header::from_bytes("Content-Type", content_type).unwrap());
+    for h in cors_headers() {
+        resp.add_header(h);
+    }
+    resp
+}
+
 pub fn handle_serve_command(port: u16, file_path: &PathBuf) -> Result<(), TuppError> {
     let token = env::var(TOKEN_ENV).map_err(|_| {
         TuppError::Other(format!(
@@ -109,6 +119,7 @@ fn handle_request(mut request: Request, file_path: &PathBuf, token: &str, data_l
             GetContacts,
             PostContacts,
             DeleteContact(Uuid),
+            GetContactPhoto(Uuid),
             GetGroups,
             PostGroups,
             DeleteGroup(Uuid),
@@ -126,6 +137,10 @@ fn handle_request(mut request: Request, file_path: &PathBuf, token: &str, data_l
             (Method::Post, ["contacts"]) => Route::PostContacts,
             (Method::Delete, ["contacts", id]) => match Uuid::parse_str(id) {
                 Ok(uuid) => Route::DeleteContact(uuid),
+                Err(_) => Route::NotFound,
+            },
+            (Method::Get, ["contacts", id, "photo"]) => match Uuid::parse_str(id) {
+                Ok(uuid) => Route::GetContactPhoto(uuid),
                 Err(_) => Route::NotFound,
             },
             (Method::Get, ["groups"]) => Route::GetGroups,
@@ -325,6 +340,18 @@ fn handle_request(mut request: Request, file_path: &PathBuf, token: &str, data_l
                             }
                         }
                     }
+                };
+                let _ = request.respond(resp);
+            }
+
+            // GET /contacts/{id}/photo → serve the downloaded photo, if any
+            Route::GetContactPhoto(id) => {
+                let resp = match crate::storage::find_photo(&id) {
+                    Some((bytes, content_type)) => binary_resp(bytes, content_type, 200),
+                    None => json_resp(
+                        serde_json::json!({"error": "No photo for this contact"}).to_string(),
+                        404,
+                    ),
                 };
                 let _ = request.respond(resp);
             }

@@ -1,9 +1,13 @@
+use std::io::Read;
+
 use serde::{Deserialize, Serialize};
 
 use crate::error::TuppError;
 
 const PEOPLE_API: &str = "https://people.googleapis.com/v1";
-const PERSON_FIELDS: &str = "names,emailAddresses,phoneNumbers,addresses,biographies,urls,organizations,genders,birthdays";
+const PERSON_FIELDS: &str = "names,emailAddresses,phoneNumbers,addresses,biographies,urls,organizations,genders,birthdays,photos";
+// Guards against an unexpectedly huge response when downloading a photo.
+const MAX_PHOTO_BYTES: u64 = 10 * 1024 * 1024;
 
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
@@ -110,6 +114,17 @@ pub struct GBirthday {
 
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct GPhoto {
+    #[serde(default)]
+    pub url: Option<String>,
+    /// True for Google's auto-generated monogram avatar rather than a photo
+    /// the person actually uploaded.
+    #[serde(default)]
+    pub default: Option<bool>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct GoogleContact {
     #[serde(default)]
     pub resource_name: String,
@@ -133,6 +148,8 @@ pub struct GoogleContact {
     pub genders: Vec<GGender>,
     #[serde(default)]
     pub birthdays: Vec<GBirthday>,
+    #[serde(default)]
+    pub photos: Vec<GPhoto>,
 }
 
 impl GoogleContact {
@@ -166,6 +183,15 @@ impl GoogleContact {
                 .strip_prefix("tuppsync-id:")
                 .and_then(|rest| uuid::Uuid::parse_str(rest.trim()).ok())
         })
+    }
+
+    /// The URL of a real, user-set photo — skips Google's auto-generated
+    /// monogram avatars, which aren't worth downloading.
+    pub fn photo_url(&self) -> Option<&str> {
+        self.photos
+            .iter()
+            .find(|p| p.default != Some(true))
+            .and_then(|p| p.url.as_deref())
     }
 }
 
@@ -234,4 +260,21 @@ pub fn patch_contact(
         .send_json(body)
         .map_err(describe_ureq_error)?;
     Ok(())
+}
+
+/// Downloads a contact photo. The URL comes straight from the People API
+/// response and is already a directly-fetchable `googleusercontent.com`
+/// link — no auth header needed, same as an `<img src>` would use.
+pub fn download_photo(url: &str) -> Result<(Vec<u8>, String), TuppError> {
+    let response = ureq::get(url).call().map_err(describe_ureq_error)?;
+    let content_type = response.content_type().to_string();
+
+    let mut bytes = Vec::new();
+    response
+        .into_reader()
+        .take(MAX_PHOTO_BYTES)
+        .read_to_end(&mut bytes)
+        .map_err(TuppError::Io)?;
+
+    Ok((bytes, content_type))
 }

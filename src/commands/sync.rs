@@ -219,6 +219,7 @@ fn update(data: &mut TuppData, file_path: &PathBuf) -> Result<(), TuppError> {
     let google_contacts = people::list_contacts(&token)?;
 
     let mut diffs: Vec<ContactDiff> = Vec::new();
+    let mut photo_downloads: Vec<(Uuid, String, String)> = Vec::new(); // (tupp_id, url, contact label)
     for gc in &google_contacts {
         if let Some(tupp_id) = gc.tuppsync_id() {
             if let Some(tupp_contact) = data.contacts.iter().find(|c| c.identifier == tupp_id) {
@@ -226,11 +227,17 @@ fn update(data: &mut TuppData, file_path: &PathBuf) -> Result<(), TuppError> {
                 if !d.is_empty() || !d.conflicts.is_empty() {
                     diffs.push(d);
                 }
+
+                if !crate::storage::has_photo(&tupp_id) {
+                    if let Some(url) = gc.photo_url() {
+                        photo_downloads.push((tupp_id, url.to_string(), gc.display_name()));
+                    }
+                }
             }
         }
     }
 
-    if diffs.is_empty() {
+    if diffs.is_empty() && photo_downloads.is_empty() {
         println!("Everything is already in sync (no linked contacts had anything to add).");
         return Ok(());
     }
@@ -253,7 +260,14 @@ fn update(data: &mut TuppData, file_path: &PathBuf) -> Result<(), TuppError> {
         google_change_count += d.google_updates.len();
     }
 
-    if tupp_change_count == 0 && google_change_count == 0 {
+    if !photo_downloads.is_empty() {
+        println!("Photos to download:");
+        for (_, _, label) in &photo_downloads {
+            println!("  + photo for {}", label);
+        }
+    }
+
+    if tupp_change_count == 0 && google_change_count == 0 && photo_downloads.is_empty() {
         println!("\nNo non-conflicting changes to apply.");
         return Ok(());
     }
@@ -261,8 +275,8 @@ fn update(data: &mut TuppData, file_path: &PathBuf) -> Result<(), TuppError> {
     println!();
     let confirmed = Confirm::new()
         .with_prompt(format!(
-            "Apply {} change(s) to tupp and {} change(s) to Google Contacts?",
-            tupp_change_count, google_change_count
+            "Apply {} change(s) to tupp, {} change(s) to Google Contacts, and download {} photo(s)?",
+            tupp_change_count, google_change_count, photo_downloads.len()
         ))
         .default(false)
         .interact()
@@ -281,6 +295,15 @@ fn update(data: &mut TuppData, file_path: &PathBuf) -> Result<(), TuppError> {
         }
         if !d.google_updates.is_empty() {
             apply_google_updates(&token, &google_contacts, &d.resource_name, d.google_updates)?;
+        }
+    }
+
+    for (tupp_id, url, label) in photo_downloads {
+        match people::download_photo(&url).and_then(|(bytes, content_type)| {
+            crate::storage::save_photo(&tupp_id, &bytes, &content_type)
+        }) {
+            Ok(_) => println!("Downloaded photo for {}.", label),
+            Err(e) => println!("Failed to download photo for {}: {}", label, e),
         }
     }
 

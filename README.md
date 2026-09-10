@@ -17,7 +17,7 @@ Since then, you should be able to run this from anywhere:
 
 ```bash
 tuppdate latest       # install the latest release
-tuppdate 1.4.2        # install a specific version
+tuppdate 1.5.0        # install a specific version
 ```
 
 ## Build from source

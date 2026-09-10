@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PROJECT_NAME="tupp"
-LATEST_VERSION="v1.4.2"
+LATEST_VERSION="v1.5.0"
 INSTALL_DIR="$HOME/.local/bin"
 ARCH=$(uname -m)
 VERSION="$1"

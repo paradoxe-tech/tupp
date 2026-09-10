@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::error::TuppError;
 use crate::storage::get_config_dir;
@@ -16,6 +17,12 @@ const REDIRECT_URI: &str = "http://127.0.0.1:8721/";
 // Refresh a bit before actual expiry to avoid racing a call that's mid-flight.
 const EXPIRY_BUFFER_SECS: i64 = 60;
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct DeclinedPair {
+    pub google_resource_name: String,
+    pub tupp_id: Uuid,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct SyncConfig {
     pub client_id: Option<String>,
@@ -24,6 +31,24 @@ pub struct SyncConfig {
     pub refresh_token: Option<String>,
     pub expires_at: Option<i64>,
     pub default_region_prefix: Option<u16>,
+    /// Heuristic-match proposals the user has explicitly turned down, so
+    /// `sync link --heuristic` doesn't keep re-asking about them on every run.
+    #[serde(default)]
+    pub declined_pairs: Vec<DeclinedPair>,
+}
+
+impl SyncConfig {
+    pub fn is_declined(&self, google_resource_name: &str, tupp_id: Uuid) -> bool {
+        self.declined_pairs
+            .iter()
+            .any(|p| p.google_resource_name == google_resource_name && p.tupp_id == tupp_id)
+    }
+
+    pub fn mark_declined(&mut self, google_resource_name: String, tupp_id: Uuid) {
+        if !self.is_declined(&google_resource_name, tupp_id) {
+            self.declined_pairs.push(DeclinedPair { google_resource_name, tupp_id });
+        }
+    }
 }
 
 fn sync_config_path() -> Result<PathBuf, TuppError> {
@@ -257,5 +282,48 @@ pub fn is_token_valid(config: &SyncConfig) -> bool {
     match (&config.access_token, config.expires_at) {
         (Some(_), Some(expires_at)) => now() < expires_at - EXPIRY_BUFFER_SECS,
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn declined_pair_is_remembered_and_deduplicated() {
+        let mut config = SyncConfig::default();
+        let tupp_id = Uuid::new_v4();
+
+        assert!(!config.is_declined("people/c123", tupp_id));
+
+        config.mark_declined("people/c123".to_string(), tupp_id);
+        assert!(config.is_declined("people/c123", tupp_id));
+        assert_eq!(config.declined_pairs.len(), 1);
+
+        // Declining the same pair again shouldn't duplicate it.
+        config.mark_declined("people/c123".to_string(), tupp_id);
+        assert_eq!(config.declined_pairs.len(), 1);
+
+        // A different tupp contact for the same google contact is unrelated.
+        assert!(!config.is_declined("people/c123", Uuid::new_v4()));
+    }
+
+    #[test]
+    fn declined_pairs_round_trip_through_json() {
+        let mut config = SyncConfig::default();
+        let tupp_id = Uuid::new_v4();
+        config.mark_declined("people/c456".to_string(), tupp_id);
+
+        let json = serde_json::to_string(&config).unwrap();
+        let restored: SyncConfig = serde_json::from_str(&json).unwrap();
+        assert!(restored.is_declined("people/c456", tupp_id));
+    }
+
+    #[test]
+    fn missing_declined_pairs_field_deserializes_as_empty() {
+        // Backward compatibility with a sync.json written before this field
+        // existed.
+        let restored: SyncConfig = serde_json::from_str("{}").unwrap();
+        assert!(restored.declined_pairs.is_empty());
     }
 }

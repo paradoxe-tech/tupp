@@ -222,17 +222,78 @@ pub struct MatchCandidate {
     pub reasons: Vec<String>,
 }
 
+/// Folds common Latin accented letters to their plain equivalent, so e.g.
+/// "Sébastien" and "Sebastien" compare as identical rather than merely close.
+fn fold_diacritics(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => 'a',
+            'è' | 'é' | 'ê' | 'ë' => 'e',
+            'ì' | 'í' | 'î' | 'ï' => 'i',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' => 'o',
+            'ù' | 'ú' | 'û' | 'ü' => 'u',
+            'ý' | 'ÿ' => 'y',
+            'ñ' => 'n',
+            'ç' => 'c',
+            'ß' => 's',
+            other => other,
+        })
+        .collect()
+}
+
+fn normalize_for_matching(s: &str) -> String {
+    fold_diacritics(&s.to_lowercase())
+}
+
+/// Normalized Levenshtein (edit-distance-based) rather than Jaro-Winkler:
+/// Jaro-Winkler's prefix bonus and tolerance for scattered matching letters
+/// make it give misleadingly high scores to genuinely unrelated short
+/// strings (two random names routinely score 50-70% "similar"), which isn't
+/// good enough for something a user is asked to confirm.
 fn best_similarity<'a>(a: impl Iterator<Item = String>, b: impl Iterator<Item = String> + Clone) -> f64 {
     let mut best = 0.0f64;
     for x in a {
         for y in b.clone() {
-            let s = strsim::jaro_winkler(&x, &y);
+            let s = strsim::normalized_levenshtein(&x, &y);
             if s > best {
                 best = s;
             }
         }
     }
     best
+}
+
+/// Monge-Elkan-style token matching: for every word of the *shorter* name,
+/// find its best match among the words of the other name, then average.
+/// This is what makes "Tigran" correctly score as a strong match against
+/// "Tigran Nersissian" (a plain whole-string comparison instead scores that
+/// pair at ~35%, since it heavily penalizes the pure length difference) —
+/// while two names that don't actually share any real words still score
+/// low, since a token has nothing good to match against either way.
+fn name_token_similarity(a: &str, b: &str) -> f64 {
+    let a_tokens: Vec<&str> = a.split_whitespace().collect();
+    let b_tokens: Vec<&str> = b.split_whitespace().collect();
+    if a_tokens.is_empty() || b_tokens.is_empty() {
+        return 0.0;
+    }
+
+    let (shorter, longer) = if a_tokens.len() <= b_tokens.len() {
+        (&a_tokens, &b_tokens)
+    } else {
+        (&b_tokens, &a_tokens)
+    };
+
+    let total: f64 = shorter
+        .iter()
+        .map(|t| {
+            longer
+                .iter()
+                .map(|o| strsim::normalized_levenshtein(t, o))
+                .fold(0.0f64, f64::max)
+        })
+        .sum();
+
+    total / shorter.len() as f64
 }
 
 pub fn score_candidate(
@@ -242,12 +303,12 @@ pub fn score_candidate(
 ) -> MatchCandidate {
     let mut reasons = Vec::new();
 
-    let google_name = google.display_name().to_lowercase();
-    let tupp_name = tupp.format_name("FIRST MIDDLE LAST").to_lowercase();
+    let google_name = normalize_for_matching(&google.display_name());
+    let tupp_name = normalize_for_matching(&tupp.format_name("FIRST MIDDLE LAST"));
     let name_score = if google_name.is_empty() || tupp_name.is_empty() {
         0.0
     } else {
-        strsim::jaro_winkler(&google_name, &tupp_name)
+        name_token_similarity(&google_name, &tupp_name)
     };
     if name_score > 0.0 {
         reasons.push(format!("name similarity {:.0}%", name_score * 100.0));
@@ -297,13 +358,13 @@ pub fn score_candidate(
         .iter()
         .flatten()
         .filter_map(|p| Institution::find_institution_by_id_recursive(institutions, &p.institution))
-        .map(|i| i.name.to_lowercase())
+        .map(|i| normalize_for_matching(&i.name))
         .collect();
     let google_orgs = google
         .organizations
         .iter()
         .filter_map(|o| o.name.as_deref())
-        .map(|s| s.to_lowercase());
+        .map(normalize_for_matching);
     let org_score = if tupp_institution_names.is_empty() {
         0.0
     } else {
@@ -326,7 +387,7 @@ fn normalize_address_tupp(a: &Address) -> String {
     [&a.number, &a.street, &a.post_code, &a.city, &a.region, &a.country]
         .into_iter()
         .filter_map(|f| f.as_deref())
-        .map(|s| s.trim().to_lowercase())
+        .map(|s| normalize_for_matching(s.trim()))
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join(" ")
@@ -336,7 +397,7 @@ fn normalize_address_google(a: &GAddress) -> String {
     [&a.street_address, &a.postal_code, &a.city, &a.region, &a.country]
         .into_iter()
         .filter_map(|f| f.as_deref())
-        .map(|s| s.trim().to_lowercase())
+        .map(|s| normalize_for_matching(s.trim()))
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join(" ")
@@ -536,6 +597,63 @@ pub fn diff(google: &GoogleContact, tupp: &Contact, default_region_prefix: Optio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fold_diacritics_makes_accented_names_compare_identical() {
+        assert_eq!(fold_diacritics("Sébastien"), "Sebastien");
+        assert_eq!(
+            normalize_for_matching("Sébastien Viglietti"),
+            normalize_for_matching("Sebastien Viglietti")
+        );
+    }
+
+    #[test]
+    fn best_similarity_rejects_unrelated_names() {
+        // Regression test: whole-string Jaro-Winkler used to score this
+        // pair at 70% similarity purely from scattered matching letters.
+        let a = normalize_for_matching("Mohamed Anis Ben Lasmar");
+        let b = normalize_for_matching("Thomas Lamine");
+        assert!(
+            strsim::normalized_levenshtein(&a, &b) < 0.4,
+            "unrelated names should not score as similar"
+        );
+    }
+
+    #[test]
+    fn best_similarity_recognizes_accent_only_difference_as_identical() {
+        let a = normalize_for_matching("Sebastien Viglietti");
+        let b = normalize_for_matching("Sébastien Viglietti");
+        assert_eq!(strsim::normalized_levenshtein(&a, &b), 1.0);
+    }
+
+    #[test]
+    fn name_token_similarity_recognizes_first_name_only_as_strong_match() {
+        // Regression test: a Google contact stored under just "Tigran" used
+        // to score a weak ~35% (whole-string comparison) against the tupp
+        // contact "Tigran Nersissian" and never get proposed. Token-level
+        // matching correctly sees "tigran" as a perfect match for one of
+        // the longer name's words.
+        let a = normalize_for_matching("Tigran");
+        let b = normalize_for_matching("Tigran Nersissian");
+        assert_eq!(name_token_similarity(&a, &b), 1.0);
+    }
+
+    #[test]
+    fn name_token_similarity_still_rejects_unrelated_names() {
+        let a = normalize_for_matching("Mohamed Anis Ben Lasmar");
+        let b = normalize_for_matching("Thomas Lamine");
+        assert!(
+            name_token_similarity(&a, &b) < 0.4,
+            "unrelated names should not score as similar"
+        );
+    }
+
+    #[test]
+    fn name_token_similarity_recognizes_missing_middle_name() {
+        let a = normalize_for_matching("Jean Pierre Dupont");
+        let b = normalize_for_matching("Jean Dupont");
+        assert_eq!(name_token_similarity(&a, &b), 1.0);
+    }
 
     #[test]
     fn normalize_phone_with_plus() {

@@ -134,60 +134,88 @@ fn link(data: &mut TuppData, heuristic: bool) -> Result<(), TuppError> {
     println!("Exact linking done: {} contact(s) linked.", exact_count);
 
     if heuristic {
+        // Every (unlinked google contact, unlinked tupp contact) pair, not
+        // just each google contact's single best pick — otherwise a contact
+        // whose best candidate gets claimed by a different, higher-scored
+        // pair first would silently vanish instead of falling back to its
+        // next-best (still available) candidate. Pairs the user has already
+        // turned down on a previous run are skipped for good. No minimum
+        // score: every remaining pair is a candidate, however weak, and
+        // it's up to the user to accept or decline it.
+        let unlinked_google: Vec<&GoogleContact> = google_contacts
+            .iter()
+            .filter(|gc| !linked_google.contains(&gc.resource_name))
+            .collect();
+        let unlinked_tupp: Vec<&Contact> = data
+            .contacts
+            .iter()
+            .filter(|c| !linked_tupp.contains(&c.identifier))
+            .collect();
+
+        let mut proposals: Vec<(String, MatchCandidate)> = Vec::new();
+        for gc in &unlinked_google {
+            for c in &unlinked_tupp {
+                if config.is_declined(&gc.resource_name, c.identifier) {
+                    continue;
+                }
+                proposals.push((
+                    gc.resource_name.clone(),
+                    matching::score_candidate(gc, c, &data.institutions),
+                ));
+            }
+        }
+
+        // Review the most confident matches first, so a strong match never
+        // loses its tupp contact to a weaker one reviewed earlier.
+        proposals.sort_by(|a, b| b.1.score.partial_cmp(&a.1.score).unwrap());
+
         let mut heuristic_count = 0;
-        for gc in &google_contacts {
-            if linked_google.contains(&gc.resource_name) {
+        for (resource_name, candidate) in proposals {
+            // Either side may have been consumed by a higher-scored match
+            // confirmed earlier in this same pass.
+            if linked_google.contains(&resource_name) || linked_tupp.contains(&candidate.tupp_id) {
                 continue;
             }
-            let candidates: Vec<&Contact> = data
+
+            let gc = google_contacts
+                .iter()
+                .find(|g| g.resource_name == resource_name)
+                .unwrap();
+            let tupp_contact = data
                 .contacts
                 .iter()
-                .filter(|c| !linked_tupp.contains(&c.identifier))
-                .collect();
-            if candidates.is_empty() {
-                break;
-            }
+                .find(|c| c.identifier == candidate.tupp_id)
+                .unwrap();
 
-            let mut scored: Vec<MatchCandidate> = candidates
-                .iter()
-                .map(|c| matching::score_candidate(gc, c, &data.institutions))
-                .collect();
-            scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-
-            if let Some(best) = scored.first() {
-                const MIN_SCORE: f64 = 0.35;
-                if best.score >= MIN_SCORE {
-                    let tupp_contact = data
-                        .contacts
-                        .iter()
-                        .find(|c| c.identifier == best.tupp_id)
-                        .unwrap();
-                    println!("\nGoogle contact: {}", gc.display_name());
-                    println!(
-                        "Tupp contact:   {}",
-                        tupp_contact.format_name("TITLE FIRST MIDDLE LAST POST")
-                    );
-                    println!(
-                        "Match score: {:.0}% ({})",
-                        best.score * 100.0,
-                        if best.reasons.is_empty() {
-                            "no specific signal".to_string()
-                        } else {
-                            best.reasons.join(", ")
-                        }
-                    );
-                    let confirmed = Confirm::new()
-                        .with_prompt("Link these two contacts?")
-                        .default(false)
-                        .interact()
-                        .unwrap();
-                    if confirmed {
-                        link_pair(&token, gc, best.tupp_id)?;
-                        linked_google.insert(gc.resource_name.clone());
-                        linked_tupp.insert(best.tupp_id);
-                        heuristic_count += 1;
-                    }
+            println!("\nGoogle contact: {}", gc.display_name());
+            println!(
+                "Tupp contact:   {}",
+                tupp_contact.format_name("TITLE FIRST MIDDLE LAST POST")
+            );
+            println!(
+                "Match score: {:.0}% ({})",
+                candidate.score * 100.0,
+                if candidate.reasons.is_empty() {
+                    "no specific signal".to_string()
+                } else {
+                    candidate.reasons.join(", ")
                 }
+            );
+            let confirmed = Confirm::new()
+                .with_prompt("Link these two contacts?")
+                .default(false)
+                .interact()
+                .unwrap();
+            if confirmed {
+                link_pair(&token, gc, candidate.tupp_id)?;
+                linked_google.insert(resource_name);
+                linked_tupp.insert(candidate.tupp_id);
+                heuristic_count += 1;
+            } else {
+                // Persisted immediately (not batched) so a declined pair
+                // stays remembered even if the run is interrupted later on.
+                config.mark_declined(resource_name, candidate.tupp_id);
+                auth::save_sync_config(&config)?;
             }
         }
         println!("Heuristic linking done: {} contact(s) linked.", heuristic_count);
